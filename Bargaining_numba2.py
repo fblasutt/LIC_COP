@@ -316,8 +316,7 @@ class HouseholdModelClass(EconModelClass):
                
                 # check the participation constraints
                 idx_single = (t,iA)
-                idx_couple = lambda iP: (t,iP,iL,iA)
-
+                
                 list_start_as_couple = (sol.Vw_couple,sol.Vm_couple,sol.Cw_priv_couple,sol.Cm_priv_couple,sol.C_pub_couple)
                 list_remain_couple = (remain_Vw[iL,iA,:],remain_Vm[iL,iA,:],remain_Cw_priv[iL,iA,:],remain_Cm_priv[iL,iA,:],remain_C_pub[iL,iA,:])
                 list_trans_to_single = (sol.Vw_single,sol.Vm_single,sol.Cw_priv_single,sol.Cm_priv_single,sol.Cw_pub_single) # last input here not important in case of divorce
@@ -325,7 +324,7 @@ class HouseholdModelClass(EconModelClass):
                 Sw = remain_Vw[iL,iA,:] - sol.Vw_single[idx_single] 
                 Sm = remain_Vm[iL,iA,:] - sol.Vm_single[idx_single] 
                 
-                check_participation_constraints(sol.power_idx,sol.power,Sw,Sm,idx_single,idx_couple,list_start_as_couple,list_remain_couple,list_trans_to_single, par)
+                check_participation_constraints(sol.power_idx,sol.power,Sw,Sm,idx_single,t,iL,iA,list_start_as_couple,list_remain_couple,list_trans_to_single,par.num_power,par.grid_power)
 
                 # save remain values
                 for iP,power in enumerate(par.grid_power):
@@ -411,7 +410,7 @@ class HouseholdModelClass(EconModelClass):
                         # check participation constraint 
                         Sw = Vw_couple - Vw_single
                         Sm = Vm_couple - Vm_single
-                        power_idx = update_bargaining_index(Sw,Sm,power_idx_lag, par)
+                        power_idx = update_bargaining_index(Sw,Sm,power_idx_lag, par.num_power)
 
                     # infer partnership status
                     if power_idx < 0.0: # divorce is coded as -1
@@ -539,8 +538,8 @@ def solve_intraperiod_couple(grid_Ctot,grid_power,rho,phi,alpha1,alpha2):
     return Cw_priv,Cm_priv,C_pub
 
 
-
-def check_participation_constraints(power_idx,power,Sw,Sm,idx_single,idx_couple,list_couple,list_raw,list_single, par):
+#@njit
+def check_participation_constraints(power_idx,power,Sw,Sm,idx_single,t,iL,iA,list_couple,list_raw,list_single,num_power,grid_power):
     
     # check the participation constraints. Array
     min_Sw = np.min(Sw)
@@ -549,21 +548,21 @@ def check_participation_constraints(power_idx,power,Sw,Sm,idx_single,idx_couple,
     max_Sm = np.max(Sm)
 
     if (min_Sw >= 0.0) & (min_Sm >= 0.0): # all values are consistent with marriage
-        for iP in range(par.num_power):
+        for iP in range(num_power):
 
             # overwrite output for couple
-            idx = idx_couple(iP)
+            idx = (t,iP,iL,iA)
             for i,key in enumerate(list_couple):
                 list_couple[i][idx] = list_raw[i][iP]
 
             power_idx[idx] = iP
-            power[idx] = par.grid_power[iP]
+            power[idx] = grid_power[iP]
 
     elif (max_Sw < 0.0) | (max_Sm < 0.0): # no value is consistent with marriage
-        for iP in range(par.num_power):
+        for iP in range(num_power):
 
             # overwrite output for couple
-            idx = idx_couple(iP)
+            idx = (t,iP,iL,iA)
             for i,key in enumerate(list_couple):
                 list_couple[i][idx] = list_single[i][idx_single]
 
@@ -574,8 +573,8 @@ def check_participation_constraints(power_idx,power,Sw,Sm,idx_single,idx_couple,
     
         # find lowest (highest) value with positive surplus for women (men)
         Low_w = 1 #0 # in case there is no crossing, this will be the correct value
-        Low_m = par.num_power-1-1 #par.num_power-1 # in case there is no crossing, this will be the correct value
-        for iP in range(par.num_power-1):
+        Low_m = num_power-1-1 #par.num_power-1 # in case there is no crossing, this will be the correct value
+        for iP in range(num_power-1):
             if (Sw[iP]<0) & (Sw[iP+1]>=0):
                 Low_w = iP+1
                 
@@ -585,26 +584,26 @@ def check_participation_constraints(power_idx,power,Sw,Sm,idx_single,idx_couple,
         # b. interpolate the surplus of each member at indifference points
         # women indifference
         id = Low_w-1
-        denom = (par.grid_power[id+1] - par.grid_power[id])
+        denom = (grid_power[id+1] - grid_power[id])
         ratio_w = (Sw[id+1] - Sw[id])/denom
         ratio_m = (Sm[id+1] - Sm[id])/denom
-        power_at_zero_w = par.grid_power[id] - Sw[id]/ratio_w
-        Sm_at_zero_w = Sm[id] + ratio_m*( power_at_zero_w - par.grid_power[id] )
+        power_at_zero_w = grid_power[id] - Sw[id]/ratio_w
+        Sm_at_zero_w = Sm[id] + ratio_m*( power_at_zero_w - grid_power[id] )
 
         # men indifference
         id = Low_m
-        denom = (par.grid_power[id+1] - par.grid_power[id])
+        denom = (grid_power[id+1] - grid_power[id])
         ratio_w = (Sw[id+1] - Sw[id])/denom
         ratio_m = (Sm[id+1] - Sm[id])/denom
-        power_at_zero_m = par.grid_power[id] - Sm[id]/ratio_m
-        Sw_at_zero_m = Sw[id] + ratio_w*( power_at_zero_m - par.grid_power[id] )
+        power_at_zero_m = grid_power[id] - Sm[id]/ratio_m
+        Sw_at_zero_m = Sw[id] + ratio_w*( power_at_zero_m - grid_power[id] )
 
 
         # update the outcomes
-        for iP in range(par.num_power):
+        for iP in range(num_power):
 
             # index to store solution for couple 
-            idx = idx_couple(iP)
+            idx = (t,iP,iL,iA)
     
             # woman wants to leave
             if iP<Low_w: 
@@ -612,9 +611,9 @@ def check_participation_constraints(power_idx,power,Sw,Sm,idx_single,idx_couple,
 
                     for i,key in enumerate(list_couple):
                         if iP==0:
-                            list_couple[i][idx] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_zero_w,Low_w-1) 
+                            list_couple[i][idx] = linear_interp_1d._interp_1d(grid_power,list_raw[i],power_at_zero_w,Low_w-1) 
                         else:
-                            list_couple[i][idx] = list_couple[i][idx_couple(0)]; # re-use that the interpolated values are identical
+                            list_couple[i][idx] = list_couple[i][(t,0,iL,iA)]; # re-use that the interpolated values are identical
 
                     power_idx[idx] = Low_w
                     power[idx] = power_at_zero_w
@@ -633,9 +632,9 @@ def check_participation_constraints(power_idx,power,Sw,Sm,idx_single,idx_couple,
                     
                     for i,key in enumerate(list_couple):
                         if (iP==(Low_m+1)):
-                            list_couple[i][idx] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_zero_m,Low_m) 
+                            list_couple[i][idx] = linear_interp_1d._interp_1d(grid_power,list_raw[i],power_at_zero_m,Low_m) 
                         else:
-                            list_couple[i][idx] = list_couple[i][idx_couple(Low_m+1)]; # re-use that the interpolated values are identical
+                            list_couple[i][idx] = list_couple[i][(t,Low_m+1,iL,iA)]; # re-use that the interpolated values are identical
 
                     power_idx[idx] = Low_m
                     power[idx] = power_at_zero_m
@@ -654,9 +653,10 @@ def check_participation_constraints(power_idx,power,Sw,Sm,idx_single,idx_couple,
                     list_couple[i][idx] = list_raw[i][iP]
 
                 power_idx[idx] = iP
-                power[idx] = par.grid_power[iP]
+                power[idx] = grid_power[iP]
 
-def update_bargaining_index(Sw,Sm,iP, par):
+@njit
+def update_bargaining_index(Sw,Sm,iP, num_power):
     
     # check the participation constraints. Array
     min_Sw = np.min(Sw)
@@ -674,8 +674,8 @@ def update_bargaining_index(Sw,Sm,iP, par):
     
         # find lowest (highest) value with positive surplus for women (men)
         Low_w = 0 # in case there is no crossing, this will be the correct value
-        Low_m = par.num_power-1 # in case there is no crossing, this will be the correct value
-        for _iP in range(par.num_power-1):
+        Low_m = num_power-1 # in case there is no crossing, this will be the correct value
+        for _iP in range(num_power-1):
             if (Sw[_iP]<0) & (Sw[_iP+1]>=0):
                 Low_w = _iP+1
                 

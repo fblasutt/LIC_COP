@@ -47,10 +47,9 @@ print('Time elapsed is {}'.format(toc-tic))
 # # print('Time elapsed is {}'.format(toc-tic))
 
 
-# tic=time.time()
-# model.solve()
-# toc=time.time()
-# print('Time elapsed is {}'.format(toc-tic))
+tic=time.time()
+model.solve()
+toc=time.time()
+print('Time elapsed is {}'.format(toc-tic))
 
-# print('Differences is {}'.format(np.min(model.sol.C_pub_couple-modelj.sol.C_pub_couple)))
-#assert np.allclose(model.sol.C_pub_couple,modelj.sol.C_pub_couple)
+print('Differences is {}'.format(np.min(model.sol.C_pub_couple-modelj.sol.C_pub_couple)))
