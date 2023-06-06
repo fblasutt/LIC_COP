@@ -234,9 +234,8 @@ class HouseholdModelClass(EconModelClass):
         self.setup_grids()
 
         # precompute the optimal intra-temporal consumption allocation for couples given total consumpotion
-        for iP,power in enumerate(par.grid_power):
-            for i,C_tot in enumerate(par.grid_Ctot):
-                sol.pre_Ctot_Cw_priv[iP,i], sol.pre_Ctot_Cm_priv[iP,i], sol.pre_Ctot_C_pub[iP,i] = solve_intraperiod_couplej(C_tot,power,par.rho_m,par.phi_m,par.alpha1_m,par.alpha2_m)
+        sol.pre_Ctot_Cw_priv, sol.pre_Ctot_Cm_priv, sol.pre_Ctot_C_pub =\
+            solve_intraperiod_couple(par.grid_Ctot,par.grid_power,par.rho_m,par.phi_m,par.alpha1_m,par.alpha2_m)
 
         # loop backwards
         for t in reversed(range(par.T)):
@@ -339,42 +338,6 @@ class HouseholdModelClass(EconModelClass):
 
 
 
-    
-    def value_of_choice_couple(self,C_tot,t,M_resources,iL,iP,power,Vw_next,Vm_next):
-        sol = self.sol
-        par = self.par
-
-        love = par.grid_love[iL]
-        
-        # current utility from consumption allocation
-        
-        Cw_priv, Cm_priv, C_pub = intraperiod_allocationj(C_tot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP])
-        #Cw_priv1, Cm_priv1, C_pub1 = intraperiod_allocation(C_tot,iP,sol,par)
-        #Cw_priv, Cm_priv, C_pub = intraperiod_allocationjj(C_tot,iP,sol,par)
-        #assert np.allclose(C_pub1,C_pub)
-        #assert np.allclose(Cw_priv1,Cw_priv)
-        #assert np.allclose(Cm_priv1,Cm_priv)
-        Vw = usr.util_j(Cw_priv,C_pub,woman,par.rho_w,par.phi_w,par.alpha1_w,par.alpha2_w,love)
-        Vm = usr.util_j(Cm_priv,C_pub,man  ,par.rho_m,par.phi_m,par.alpha1_m,par.alpha2_m,love)
-
-        # add continuation value
-        if t < (par.T-1):
-            # savings_vec = np.ones(par.num_shock_love)
-            sol.savings_vec[:] = M_resources - C_tot #np.repeat(M_resources - C_tot,par.num_shock_love) np.tile(M_resources - C_tot,(par.num_shock_love,)) 
-            love_next_vec = love + par.grid_shock_love
-
-            linear_interp.interp_2d_vec(par.grid_love,par.grid_A , Vw_next, love_next_vec,sol.savings_vec,sol.Vw_plus_vec)
-            linear_interp.interp_2d_vec(par.grid_love,par.grid_A , Vm_next, love_next_vec,sol.savings_vec,sol.Vm_plus_vec)
-
-            EVw_plus = sol.Vw_plus_vec @ par.grid_weight_love
-            EVm_plus = sol.Vm_plus_vec @ par.grid_weight_love
-
-            Vw += par.beta*EVw_plus
-            Vm += par.beta*EVm_plus
-
-        # return
-        Val = power*Vw + (1.0-power)*Vm
-        return Val , Cw_priv, Cm_priv, C_pub, Vw,Vm
     
     
     def value_of_choice_single(self,C_tot,M,gender,V_next):
@@ -530,20 +493,8 @@ def intraperiod_allocation_single(C_tot,gender,par):
     return C_priv,C_pub
 
 
-def intraperiod_allocation(C_tot,iP,sol,par):
-
-    # interpolate pre-computed solution
-    j1 = linear_interp.binary_search(0,par.num_Ctot,par.grid_Ctot,C_tot)
-    Cw_priv = linear_interp_1d._interp_1d(par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],C_tot,j1)
-    Cm_priv = linear_interp_1d._interp_1d(par.grid_Ctot,sol.pre_Ctot_Cm_priv[iP],C_tot,j1)
-    C_pub = C_tot - Cw_priv - Cm_priv 
-
-    return Cw_priv, Cm_priv, C_pub
-
-
-
 @njit
-def intraperiod_allocationj(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm_priv):
+def intraperiod_allocation(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm_priv):
 
     # interpolate pre-computed solution
     j1 = linear_interp.binary_search(0,num_Ctot,grid_Ctot,C_tot)
@@ -556,46 +507,38 @@ def intraperiod_allocationj(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_C
 
 
     
-#@njit
-def solve_intraperiod_couplej(C_tot,power,rho,phi,alpha1,alpha2,starting_val=None):
+#@njit at some point this needs to be jiited...
+def solve_intraperiod_couple(grid_Ctot,grid_power,rho,phi,alpha1,alpha2):
+        
+    C_pub,  Cw_priv, Cm_priv = np.ones((3,len(grid_power),len(grid_Ctot)))
     
-    # setup estimation. Impose constraint that C_tot = Cw+Cm+C
-    bounds = optimize.Bounds(0.0, C_tot, keep_feasible=True)
-    obj = lambda x: - (power*usr.util_j(x[0],C_tot-np.sum(x),woman,rho,phi,alpha1,alpha2) + (1.0-power)*usr.util_j(x[1],C_tot-np.sum(x),man,rho,phi,alpha1,alpha2))
+    bounds = optimize.Bounds(0.0, 1.0, keep_feasible=True)#bounds for minimization
     
-    # estimate
-    x0 = np.array([C_tot/3,C_tot/3]) if starting_val is None else starting_val
-    res = optimize.minimize(obj,x0,bounds=bounds)
-
-    # unpack
-    Cw_priv = res.x[0]
-    Cm_priv = res.x[1]
+    x0 = np.array([0.33,0.33])#initial condition (to be updated)
     
+    @njit
+    def uobj(x,ct,pw):#function to minimize
+        pubc=ct*(1.0-np.sum(x))
+        return - (pw*usr.util_j(x[0]*ct,pubc,woman,rho,phi,alpha1,alpha2) + (1.0-pw)*usr.util_j(x[1]*ct,pubc,man,rho,phi,alpha1,alpha2))
     
-    C_pub = C_tot - Cw_priv - Cm_priv
+   
+    for iP,power in enumerate(grid_power):
+        for i,C_tot in enumerate(grid_Ctot):
+            
+            # estimate
+            res = optimize.minimize(uobj,x0,bounds=bounds,args=(C_tot,power))
+        
+            # unpack
+            Cw_priv[iP,i]= res.x[0]*C_tot
+            Cm_priv[iP,i]= res.x[1]*C_tot
+            C_pub[iP,i] = C_tot - Cw_priv[iP,i] - Cm_priv[iP,i]
+            
+            # update initial conidtion
+            x0=res.x if i<len(grid_Ctot)-1 else np.array([0.33,0.33])
 
     return Cw_priv,Cm_priv,C_pub
 
 
-def fun(x):
-    return []
-
-def solve_intraperiod_couple(C_tot,power,par,starting_val=None):
-    
-    # setup estimation. Impose constraint that C_tot = Cw+Cm+C
-    bounds = optimize.Bounds(0.0, C_tot, keep_feasible=True)
-    obj = lambda x: - (power*usr.util(x[0],C_tot-np.sum(x),woman,par) + (1.0-power)*usr.util(x[1],C_tot-np.sum(x),man,par))
-    
-    # estimate
-    x0 = np.array([C_tot/3,C_tot/3]) if starting_val is None else starting_val
-    res = optimize.minimize(obj,x0,bounds=bounds)
-
-    # unpack
-    Cw_priv = res.x[0]
-    Cm_priv = res.x[1]
-    C_pub = C_tot - Cw_priv - Cm_priv
-
-    return Cw_priv,Cm_priv,C_pub
 
 def check_participation_constraints(power_idx,power,Sw,Sm,idx_single,idx_couple,list_couple,list_raw,list_single, par):
     
@@ -760,7 +703,7 @@ def update_bargaining_index(Sw,Sm,iP, par):
             return iP
 
 @njit
-def value_of_choice_couple2(Ctot,t,M_resources,iL,power,Vw_next,Vm_next,
+def value_of_choice_couple(Ctot,t,M_resources,iL,power,Vw_next,Vm_next,
                             pre_Ctot_Cw_priviP,pre_Ctot_Cm_priviP,Vw_plus_vec,Vm_plus_vec,
                             grid_love,num_Ctot,grid_Ctot,
                             rho_w,phi_w,alpha1_w,alpha2_w,
@@ -769,16 +712,15 @@ def value_of_choice_couple2(Ctot,t,M_resources,iL,power,Vw_next,Vm_next,
 
     love = grid_love[iL]
     
-    # current utility from consumption allocation
-    
-    Cw_priv, Cm_priv, C_pub = intraperiod_allocationj(Ctot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priviP,pre_Ctot_Cm_priviP)
+    # current utility from consumption allocation   
+    Cw_priv, Cm_priv, C_pub = intraperiod_allocation(Ctot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priviP,pre_Ctot_Cm_priviP)
     Vw = usr.util_j(Cw_priv,C_pub,woman,rho_w,phi_w,alpha1_w,alpha2_w,love)
     Vm = usr.util_j(Cm_priv,C_pub,man  ,rho_m,phi_m,alpha1_m,alpha2_m,love)
 
     # add continuation value
     if t < (T-1):
         savings_vec = np.ones(num_shock_love)
-        savings_vec[:] = M_resources - Ctot #np.repeat(M_resources - C_tot,par.num_shock_love) np.tile(M_resources - C_tot,(par.num_shock_love,)) 
+        savings_vec[:] = M_resources - Ctot
         love_next_vec = love + grid_shock_love
 
         linear_interp.interp_2d_vec(grid_love,grid_A , Vw_next, love_next_vec,savings_vec,Vw_plus_vec)
@@ -804,7 +746,7 @@ def obj(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,
                             rho_m,phi_m,alpha1_m,alpha2_m,
                             T,grid_shock_love,grid_A,grid_weight_love,beta,num_shock_love):
     
-    return -value_of_choice_couple2(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,
+    return -value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,
                                 pre_Ctot_Cw_priviP,pre_Ctot_Cm_priviP,Vw_plus_vec,Vm_plus_vec,
                                 grid_love,num_Ctot,grid_Ctot,
                                 rho_w,phi_w,alpha1_w,alpha2_w,
@@ -817,14 +759,14 @@ def obj(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,
 
 
 @njit
-def value_of_choice_couple22(Ctot,t,M_resources,iL,iP,power,Vw_next,Vm_next,par,sol):
+def value_of_choice_couple2(Ctot,t,M_resources,iL,iP,power,Vw_next,Vm_next,par,sol):
 
     love = par.grid_love[iL]
     
     # current utility from consumption allocation
     
-    #Cw_priv, Cm_priv, C_pub = intraperiod_allocationj(Ctot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priviP,sol.pre_Ctot_Cm_priviP)
-    Cw_priv, Cm_priv, C_pub = intraperiod_allocationj(Ctot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP])
+    #Cw_priv, Cm_priv, C_pub = intraperiod_allocation(Ctot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priviP,sol.pre_Ctot_Cm_priviP)
+    Cw_priv, Cm_priv, C_pub = intraperiod_allocation(Ctot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP])
     Vw = usr.util_jj(Cw_priv,C_pub,woman,par,love)
     Vm = usr.util_jj(Cm_priv,C_pub,man  ,par,love)
     #Vw = usr.util_j(Cw_priv,C_pub,woman,par.rho_w,par.phi_w,par.alpha1_w,par.alpha2_w,love)
@@ -848,7 +790,7 @@ def value_of_choice_couple22(Ctot,t,M_resources,iL,iP,power,Vw_next,Vm_next,par,
 @njit
 def obj2(Ctot,tt,M_resources,iL,iP,power,Vw_next,Vm_next,par,sol):
     
-    return -value_of_choice_couple22(Ctot,tt,M_resources,iL,iP,power,Vw_next,Vm_next,par,sol)[0]
+    return -value_of_choice_couple2(Ctot,tt,M_resources,iL,iP,power,Vw_next,Vm_next,par,sol)[0]
 
 @njit
 def solve_remain_couple(par,sol,t):
@@ -869,7 +811,7 @@ def solve_remain_couple(par,sol,t):
                     
                     # current utility from consumption allocation
                     remain_Cw_priv[iL,iA,iP], remain_Cm_priv[iL,iA,iP], remain_C_pub[iL,iA,iP] =\
-                        intraperiod_allocationj(C_tot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP])
+                        intraperiod_allocation(C_tot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP])
                     remain_Vw[iL,iA,iP] = usr.util_jj(remain_Cw_priv[iL,iA,iP],remain_C_pub[iL,iA,iP],woman,par,par.grid_love[iL])
                     remain_Vm[iL,iA,iP] = usr.util_jj(remain_Cm_priv[iL,iA,iP],remain_C_pub[iL,iA,iP],man  ,par,par.grid_love[iL])
                 else:
@@ -885,10 +827,10 @@ def solve_remain_couple(par,sol,t):
                                           par.T,par.grid_shock_love,par.grid_A,par.grid_weight_love,par.beta,par.num_shock_love)
                    
                     C_tot=golden_section_search.optimizer(obj,1.0e-6, M_resources - 1.0e-6,args=args)
-                    #C_tot=golden_section_search.optimizer(value_of_choice_couple22,1.0e-6, M_resources - 1.0e-6,args=(t,M_resources,iL,iP,par.grid_power[iP],Vw_next,Vm_next,par,sol))
+                    #C_tot=golden_section_search.optimizer(value_of_choice_couple2,1.0e-6, M_resources - 1.0e-6,args=(t,M_resources,iL,iP,par.grid_power[iP],Vw_next,Vm_next,par,sol))
                     
                     _, remain_Cw_priv[iL,iA,iP], remain_Cm_priv[iL,iA,iP], remain_C_pub[iL,iA,iP], remain_Vw[iL,iA,iP],remain_Vm[iL,iA,iP] =\
-                        value_of_choice_couple2(C_tot,*args)
+                        value_of_choice_couple(C_tot,*args)
 
 
     # return objects
