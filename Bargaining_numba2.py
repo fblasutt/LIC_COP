@@ -227,93 +227,26 @@ class HouseholdModelClass(EconModelClass):
         par.grid_A_pd = nonlinspace(0.0,par.max_A,par.num_A_pd,1.1)
 
     def solve(self):
-        sol = self.sol
-        par = self.par 
 
-        # setup grids
-        self.setup_grids()
-
-        # precompute the optimal intra-temporal consumption allocation for couples given total consumpotion
-        # this needs to be jitted at some point
-        sol.pre_Ctot_Cw_priv, sol.pre_Ctot_Cm_priv, sol.pre_Ctot_C_pub = solve_intraperiod_couple(par)
-
-        # loop backwards
-        for t in reversed(range(par.T)):
-            self.solve_single(t)
-            self.solve_couple(t)
-
-        # total consumption
-        sol.C_tot_couple = sol.Cw_priv_couple + sol.Cm_priv_couple + sol.C_pub_couple
-        sol.C_tot_remain_couple = sol.Cw_priv_remain_couple + sol.Cm_priv_remain_couple + sol.C_pub_remain_couple
-        sol.Cw_tot_single = sol.Cw_priv_single + sol.Cw_pub_single
-        sol.Cm_tot_single = sol.Cm_priv_single + sol.Cm_pub_single
-
-        # value of transitioning to singlehood. Done here because absorbing . it is the same as entering period as single.
-        sol.Vw_trans_single = sol.Vw_single.copy()
-        sol.Vm_trans_single = sol.Vm_single.copy()
-        sol.Cw_priv_trans_single = sol.Cw_priv_single.copy()
-        sol.Cm_priv_trans_single = sol.Cm_priv_single.copy()
-        sol.Cw_pub_trans_single = sol.Cw_pub_single.copy()
-        sol.Cm_pub_trans_single = sol.Cm_pub_single.copy()
-        sol.Cw_tot_trans_single = sol.Cw_tot_single.copy()
-        sol.Cm_tot_trans_single = sol.Cm_tot_single.copy()
-                      
-    def solve_single(self,t):
-        par = self.par
-        sol = self.sol
-        
-        # parameters used for optimization: partial unpacking improves speed
-        parsw=(par.rho_w,par.phi_w,par.alpha1_w,par.alpha2_w)
-        parsm=(par.rho_m,par.phi_m,par.alpha1_m,par.alpha2_m)
-                
-        # loop through state variable: wealth
-        for iA in range(par.num_A):
-            idx = (t,iA)
-
-            # resources
-            Aw = par.grid_Aw[iA]
-            Am = par.grid_Am[iA]
-
-            Mw = usr.resources_single(Aw,woman,par.inc_w,par.inc_m,par.R) 
-            Mm = usr.resources_single(Am,man,par.inc_w,par.inc_m,par.R) 
-
-            if t == (par.T-1): # terminal period
-                
-                # intra-period allocation: consume all resources
-                sol.Cw_priv_single[idx],sol.Cw_pub_single[idx] = intraperiod_allocation_single(Mw,woman,*parsw)
-                sol.Vw_single[idx] = usr.util(sol.Cw_priv_single[idx],sol.Cw_pub_single[idx],woman,*parsm)
-                
-                sol.Cm_priv_single[idx],sol.Cm_pub_single[idx] = intraperiod_allocation_single(Mm,man,*parsm)
-                sol.Vm_single[idx] = usr.util(sol.Cm_priv_single[idx],sol.Cm_pub_single[idx],man,*parsm)
-            
-            else: # earlier periods
-
-                # search over optimal total consumption, C. obj_s=-value of choice of singles
-                argsw=(Mw,woman,sol.Vw_single[t+1],*parsw,par.beta,par.grid_Aw)
-                argsm=(Mm,man  ,sol.Vm_single[t+1],*parsm,par.beta,par.grid_Am)
-                
-                Cw = golden_section_search.optimizer(obj_s,1.0e-8, Mw-1.0e-8,args=argsw)
-                Cm = golden_section_search.optimizer(obj_s,1.0e-8, Mm-1.0e-8,args=argsm)
-                
-                # store results
-                sol.Cw_priv_single[idx],sol.Cw_pub_single[idx] = intraperiod_allocation_single(Cw,woman,*parsm)
-                sol.Vw_single[idx] = value_of_choice_single(Cw,*argsw)
-                
-                sol.Cm_priv_single[idx],sol.Cm_pub_single[idx] = intraperiod_allocation_single(Cm,man,*parsw)
-                sol.Vm_single[idx] = value_of_choice_single(Cm,*argsm)         
-             
-    def solve_couple(self,t):
 
         with jit(self) as model:    
+            
             par = model.par
             sol = model.sol
             
-            #Solve the couples's problem for current pareto weight
-            remain_Cw_priv,remain_Cm_priv,remain_C_pub,remain_Vw,remain_Vm=solve_remain_couple(par,sol,t)
+            # precompute the optimal intra-temporal consumption allocation for couples given total consumpotion
+            # this needs to be jitted at some point
+            solve_intraperiod_couple(sol,par)
             
-            #Check participation constrints and eventually update policy function and pareto weights
-            check_participation_constraints(remain_Cw_priv,remain_Cm_priv,remain_C_pub,remain_Vw,remain_Vm,par,sol,t)
+            # loop backwards
+            for t in reversed(range(par.T)):
+                solve_single(sol,par,t)
+                solve_couple(sol,par,t)
+    
+            # store results
+            store(sol)
 
+                      
 
    
     def simulate(self):
@@ -450,6 +383,62 @@ class HouseholdModelClass(EconModelClass):
 ############
 # routines #
 ############
+
+            
+@njit
+def solve_single(sol,par,t):
+
+    
+    # parameters used for optimization: partial unpacking improves speed
+    parsw=(par.rho_w,par.phi_w,par.alpha1_w,par.alpha2_w)
+    parsm=(par.rho_m,par.phi_m,par.alpha1_m,par.alpha2_m)
+            
+    # loop through state variable: wealth
+    for iA in range(par.num_A):
+        idx = (t,iA)
+
+        # resources
+        Aw = par.grid_Aw[iA]
+        Am = par.grid_Am[iA]
+
+        Mw = usr.resources_single(Aw,woman,par.inc_w,par.inc_m,par.R) 
+        Mm = usr.resources_single(Am,man,par.inc_w,par.inc_m,par.R) 
+
+        if t == (par.T-1): # terminal period
+            
+            # intra-period allocation: consume all resources
+            sol.Cw_priv_single[idx],sol.Cw_pub_single[idx] = intraperiod_allocation_single(Mw,woman,*parsw)
+            sol.Vw_single[idx] = usr.util(sol.Cw_priv_single[idx],sol.Cw_pub_single[idx],woman,*parsm)
+            
+            sol.Cm_priv_single[idx],sol.Cm_pub_single[idx] = intraperiod_allocation_single(Mm,man,*parsm)
+            sol.Vm_single[idx] = usr.util(sol.Cm_priv_single[idx],sol.Cm_pub_single[idx],man,*parsm)
+        
+        else: # earlier periods
+
+            # search over optimal total consumption, C. obj_s=-value of choice of singles
+            argsw=(Mw,woman,sol.Vw_single[t+1],*parsw,par.beta,par.grid_Aw)
+            argsm=(Mm,man  ,sol.Vm_single[t+1],*parsm,par.beta,par.grid_Am)
+            
+            Cw = golden_section_search.optimizer(obj_s,1.0e-8, Mw-1.0e-8,args=argsw)
+            Cm = golden_section_search.optimizer(obj_s,1.0e-8, Mm-1.0e-8,args=argsm)
+            
+            # store results
+            sol.Cw_priv_single[idx],sol.Cw_pub_single[idx] = intraperiod_allocation_single(Cw,woman,*parsm)
+            sol.Vw_single[idx] = value_of_choice_single(Cw,*argsw)
+            
+            sol.Cm_priv_single[idx],sol.Cm_pub_single[idx] = intraperiod_allocation_single(Cm,man,*parsw)
+            sol.Vm_single[idx] = value_of_choice_single(Cm,*argsm)         
+ 
+@njit
+def solve_couple(sol,par,t):
+
+    
+    #Solve the couples's problem for current pareto weight
+    remain_Cw_priv,remain_Cm_priv,remain_C_pub,remain_Vw,remain_Vm=solve_remain_couple(par,sol,t)
+    
+    #Check participation constrints and eventually update policy function and pareto weights
+    check_participation_constraints(remain_Cw_priv,remain_Cm_priv,remain_C_pub,remain_Vw,remain_Vm,par,sol,t)
+        
 @njit
 def intraperiod_allocation_single(C_tot,gender,rho,phi,alpha1,alpha2):
     C_priv = usr.cons_priv_single(C_tot,gender,rho,phi,alpha1,alpha2)
@@ -472,7 +461,7 @@ def intraperiod_allocation(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm
 
     
 #@njit at some point this needs to be jiited...
-def solve_intraperiod_couple(par):
+def solve_intraperiod_couple(sol,par):
         
     C_pub,  Cw_priv, Cm_priv = np.ones((3,par.num_power,par.num_Ctot))
     
@@ -495,14 +484,14 @@ def solve_intraperiod_couple(par):
             res = optimize.minimize(uobj,x0,bounds=bounds,args=(C_tot,power))
         
             # unpack
-            Cw_priv[iP,i]= res.x[0]*C_tot
-            Cm_priv[iP,i]= res.x[1]*C_tot
-            C_pub[iP,i] = C_tot - Cw_priv[iP,i] - Cm_priv[iP,i]
+            sol.pre_Ctot_Cw_priv[iP,i]= res.x[0]*C_tot
+            sol.pre_Ctot_Cm_priv[iP,i]= res.x[1]*C_tot
+            sol.pre_Ctot_C_pub[iP,i] = C_tot - Cw_priv[iP,i] - Cm_priv[iP,i]
             
             # update initial conidtion
             x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
 
-    return Cw_priv,Cm_priv,C_pub
+
 
 
 @njit
@@ -811,3 +800,22 @@ def solve_remain_couple(par,sol,t):
 
     # return objects
     return remain_Cw_priv, remain_Cm_priv, remain_C_pub, remain_Vw, remain_Vm
+
+#@njit
+def store(sol):
+    
+    # total consumption
+    sol.C_tot_couple[::] = sol.Cw_priv_couple[::] + sol.Cm_priv_couple[::] + sol.C_pub_couple[::]
+    sol.C_tot_remain_couple[::] = sol.Cw_priv_remain_couple[::] + sol.Cm_priv_remain_couple[::] + sol.C_pub_remain_couple[::]
+    sol.Cw_tot_single[::] = sol.Cw_priv_single[::] + sol.Cw_pub_single[::]
+    sol.Cm_tot_single[::] = sol.Cm_priv_single[::] + sol.Cm_pub_single[::]
+
+    # value of transitioning to singlehood. Done here because absorbing . it is the same as entering period as single.
+    sol.Vw_trans_single[::] = sol.Vw_single[::].copy()
+    sol.Vm_trans_single[::] = sol.Vm_single[::].copy()
+    sol.Cw_priv_trans_single[::] = sol.Cw_priv_single[::].copy()
+    sol.Cm_priv_trans_single[::] = sol.Cm_priv_single[::].copy()
+    sol.Cw_pub_trans_single[::] = sol.Cw_pub_single[::].copy()
+    sol.Cm_pub_trans_single[::] = sol.Cm_pub_single[::].copy()
+    sol.Cw_tot_trans_single[::] = sol.Cw_tot_single[::].copy()
+    sol.Cm_tot_trans_single[::] = sol.Cm_tot_single[::].copy()
