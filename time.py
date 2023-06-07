@@ -41,6 +41,12 @@ toc=time.time()
 print('Time elapsed is {}'.format(toc-tic))
 
 
+tic=time.time()
+modelj.simulate()
+toc=time.time()
+print('Time elapsed is {}'.format(toc-tic))
+
+
 # # tic=time.time()
 # # modelj.solve()
 # # toc=time.time()
