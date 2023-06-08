@@ -594,7 +594,7 @@ def obj_s(C_tot,M,gender,V_next,rho,phi,alpha1,alpha2,beta,grid_A):
 def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot_Cw_priviP,
         pre_Ctot_Cm_priviP,Vw_plus_vec,Vm_plus_vec, grid_love,num_Ctot,grid_Ctot,
         rho_w,phi_w,alpha1_w,alpha2_w,rho_m,phi_m,alpha1_m,alpha2_m,
-        T,grid_shock_love,grid_A,grid_weight_love,beta,num_shock_love):
+        T,grid_A,grid_weight_love,beta,num_shock_love,love_next_vec,savings_vec):
 
     pars= (rho_w,phi_w,alpha1_w,alpha2_w,grid_love[iL])
     
@@ -604,9 +604,7 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot
     Vm = usr.util(Cm_priv,C_pub,man  ,*pars)
 
     # add continuation value
-    savings_vec = np.ones(num_shock_love)
     savings_vec[:] = M_resources - Ctot
-    love_next_vec = grid_love[iL] + grid_shock_love
 
     linear_interp.interp_2d_vec(grid_love,grid_A , Vw_next, love_next_vec,savings_vec,Vw_plus_vec)
     linear_interp.interp_2d_vec(grid_love,grid_A , Vm_next, love_next_vec,savings_vec,Vm_plus_vec)
@@ -617,9 +615,8 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot
     Vw += beta*EVw_plus
     Vm += beta*EVm_plus
 
-    # return
-    Val = power*Vw + (1.0-power)*Vm
-    return Val , Cw_priv, Cm_priv, C_pub, Vw,Vm
+    
+    return power*Vw + (1.0-power)*Vm, Cw_priv, Cm_priv, C_pub, Vw,Vm
 
 
  
@@ -627,12 +624,12 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot
 def obj(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot_Cw_priviP,
         pre_Ctot_Cm_priviP,Vw_plus_vec,Vm_plus_vec, grid_love,num_Ctot,grid_Ctot,
         rho_w,phi_w,alpha1_w,alpha2_w,rho_m,phi_m,alpha1_m,alpha2_m,
-        T,grid_shock_love,grid_A,grid_weight_love,beta,num_shock_love):
+        T,grid_A,grid_weight_love,beta,num_shock_love,love_next_vec,savings_vec):
     
     return -value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot_Cw_priviP,
             pre_Ctot_Cm_priviP,Vw_plus_vec,Vm_plus_vec, grid_love,num_Ctot,grid_Ctot,
             rho_w,phi_w,alpha1_w,alpha2_w,rho_m,phi_m,alpha1_m,alpha2_m,
-            T,grid_shock_love,grid_A,grid_weight_love,beta,num_shock_love)[0]
+            T,grid_A,grid_weight_love,beta,num_shock_love,love_next_vec,savings_vec)[0]
 
 
 @njit(parallel=True)
@@ -645,12 +642,14 @@ def solve_remain_couple(par,sol,t):
     #parameters: useful to unpack this to improve speed
     pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot,
         par.rho_w,par.phi_w,par.alpha1_w,par.alpha2_w, par.rho_m,par.phi_m,par.alpha1_m,par.alpha2_m,
-        par.T,par.grid_shock_love,par.grid_A,par.grid_weight_love,par.beta,par.num_shock_love)
+        par.T,par.grid_A,par.grid_weight_love,par.beta,par.num_shock_love)
     
     pars2=(par.rho_m,par.phi_m,par.alpha1_m,par.alpha2_m)
     
     for iL in prange(par.num_love):
         Vw_plus_vec,Vm_plus_vec=np.ones(len(par.grid_shock_love))+np.nan,np.ones(len(par.grid_shock_love))+np.nan
+        love_next_vec = par.grid_love[iL] + par.grid_shock_love
+        savings_vec = np.ones(par.num_shock_love)
         
         for iA in range(par.num_A):
             
@@ -674,7 +673,7 @@ def solve_remain_couple(par,sol,t):
                     Vw_next = sol.Vw_couple[t+1,iP]
                     Vm_next = sol.Vm_couple[t+1,iP]
                     
-                    args=(t,M_resources,iL,par.grid_power[iP],Vw_next,Vm_next,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP],Vw_plus_vec,Vm_plus_vec,*pars1)             
+                    args=(t,M_resources,iL,par.grid_power[iP],Vw_next,Vm_next,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP],Vw_plus_vec,Vm_plus_vec,*pars1,love_next_vec,savings_vec)             
                     C_tot=golden_section_search.optimizer(obj,1.0e-6, M_resources - 1.0e-6,args=args)
 
                     _, remain_Cw_priv[iL,iA,iP], remain_Cm_priv[iL,iA,iP], remain_C_pub[iL,iA,iP], remain_Vw[iL,iA,iP],remain_Vm[iL,iA,iP] =\
