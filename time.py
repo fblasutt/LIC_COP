@@ -35,22 +35,22 @@ toc=time.time()
 print('Time elapsed is {}'.format(toc-tic))
 
 
-tic=time.time()
-modelj.simulate()
-toc=time.time()
-print('Time elapsed is {}'.format(toc-tic))
+# tic=time.time()
+# modelj.simulate()
+# toc=time.time()
+# print('Time elapsed is {}'.format(toc-tic))
+
+
+# tic=time.time()
+# modelj.simulate()
+# toc=time.time()
+# print('Time elapsed is {}'.format(toc-tic))
 
 
 tic=time.time()
-modelj.simulate()
+modelj.solve() 
 toc=time.time()
 print('Time elapsed is {}'.format(toc-tic))
-
-
-# # tic=time.time()
-# # modelj.solve()
-# # toc=time.time()
-# # print('Time elapsed is {}'.format(toc-tic))
 
 
 # tic=time.time()
@@ -58,4 +58,4 @@ print('Time elapsed is {}'.format(toc-tic))
 # toc=time.time()
 # print('Time elapsed is {}'.format(toc-tic))
 
-#print('Differences is {}'.format(np.min(model.sol.C_pub_couple-modelj.sol.C_pub_couple)))
+print('Differences is {}'.format(np.min(model.sol.C_pub_couple-modelj.sol.C_pub_couple)))

@@ -375,14 +375,14 @@ def solve_intraperiod_couple(sol,par):
 
 
 
-@njit
+@njit(parallel=True)
 def check_participation_constraints(remain_Cw_priv, remain_Cm_priv, remain_C_pub, remain_Vw, remain_Vm,par,sol,t):
  
     power_idx=sol.power_idx
     power=sol.power
             
-    for iL,love in enumerate(par.grid_love):
-        for iA,A in enumerate(par.grid_A):
+    for iL in prange(par.num_love):
+        for iA in range(par.num_A):
            
             # check the participation constraints
             idx_single = (t,iA)
@@ -635,7 +635,7 @@ def obj(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot_Cw_priviP,
             T,grid_shock_love,grid_A,grid_weight_love,beta,num_shock_love)[0]
 
 
-@njit
+@njit(parallel=True)
 def solve_remain_couple(par,sol,t):
  
     # initialize
@@ -643,13 +643,15 @@ def solve_remain_couple(par,sol,t):
     Vw_next, Vm_next = None, None
     
     #parameters: useful to unpack this to improve speed
-    pars1=(sol.Vw_plus_vec,sol.Vm_plus_vec, par.grid_love,par.num_Ctot,par.grid_Ctot,
+    pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot,
         par.rho_w,par.phi_w,par.alpha1_w,par.alpha2_w, par.rho_m,par.phi_m,par.alpha1_m,par.alpha2_m,
         par.T,par.grid_shock_love,par.grid_A,par.grid_weight_love,par.beta,par.num_shock_love)
     
     pars2=(par.rho_m,par.phi_m,par.alpha1_m,par.alpha2_m)
     
-    for iL in range(par.num_love):
+    for iL in prange(par.num_love):
+        Vw_plus_vec,Vm_plus_vec=np.ones(len(par.grid_shock_love))+np.nan,np.ones(len(par.grid_shock_love))+np.nan
+        
         for iA in range(par.num_A):
             
             M_resources = usr.resources_couple(par.grid_A[iA],par.inc_w,par.inc_m,par.R)
@@ -672,7 +674,7 @@ def solve_remain_couple(par,sol,t):
                     Vw_next = sol.Vw_couple[t+1,iP]
                     Vm_next = sol.Vm_couple[t+1,iP]
                     
-                    args=(t,M_resources,iL,par.grid_power[iP],Vw_next,Vm_next,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP],*pars1)             
+                    args=(t,M_resources,iL,par.grid_power[iP],Vw_next,Vm_next,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP],Vw_plus_vec,Vm_plus_vec,*pars1)             
                     C_tot=golden_section_search.optimizer(obj,1.0e-6, M_resources - 1.0e-6,args=args)
 
                     _, remain_Cw_priv[iL,iA,iP], remain_Cm_priv[iL,iA,iP], remain_C_pub[iL,iA,iP], remain_Vw[iL,iA,iP],remain_Vm[iL,iA,iP] =\
