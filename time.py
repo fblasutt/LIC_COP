@@ -4,7 +4,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import time
 import Bargaining as brg
-import Bargaining_numba2 as brgj
+import Bargaining_numba as brgj
 
 # plot style
 linestyles = ['-','--','-.',':',':']
@@ -28,29 +28,19 @@ model  = brg.HouseholdModelClass(name='model_1',par=specs['model 1']['par'])
 modelj = brgj.HouseholdModelClass(name='model_1',par=specs['model 1']['par'])
 
 
-# solve
+#solve
 tic=time.time()
 modelj.solve()
 toc=time.time()
 print('Time elapsed is {}'.format(toc-tic))
 
 
-# tic=time.time()
-# modelj.simulate()
-# toc=time.time()
-# print('Time elapsed is {}'.format(toc-tic))
 
 
 # tic=time.time()
-# modelj.simulate()
+# modelj.solve() 
 # toc=time.time()
 # print('Time elapsed is {}'.format(toc-tic))
-
-
-tic=time.time()
-modelj.solve() 
-toc=time.time()
-print('Time elapsed is {}'.format(toc-tic))
 
 
 # tic=time.time()
@@ -58,4 +48,4 @@ print('Time elapsed is {}'.format(toc-tic))
 # toc=time.time()
 # print('Time elapsed is {}'.format(toc-tic))
 
-print('Differences is {}'.format(np.min(model.sol.C_pub_couple-modelj.sol.C_pub_couple)))
+# print('Differences is {}'.format(np.min(model.sol.C_pub_couple-modelj.sol.C_pub_couple)))

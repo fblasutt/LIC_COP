@@ -3,7 +3,7 @@ from mpl_toolkits import mplot3d
 import matplotlib
 import matplotlib.pyplot as plt
 
-import Bargaining_numba2 as brg
+import Bargaining_numba as brg
 
 # plot style
 linestyles = ['-','--','-.',':',':']
