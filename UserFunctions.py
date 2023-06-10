@@ -19,7 +19,7 @@ def util(c_priv,c_pub,gender,par,love=0.0):
         alpha1 = par.alpha1_m
         alpha2 = par.alpha2_m
     
-    return ((alpha1*c_priv**phi + alpha2*c_pub**phi)**(1.0-rho))/(1.0-rho) + love
+    return ((alpha1*c_priv**phi + alpha2*c_pub**phi)**(1.0-rho))/(1.0-rho)+ love
 
 def resources_couple(A,par):
     return par.R*A + par.inc_w + par.inc_m

@@ -563,7 +563,7 @@ def intraperiod_allocation(C_tot,iP,sol,par):
 def solve_intraperiod_couple(C_tot,power,par,starting_val=None):
     
     # setup estimation. Impose constraint that C_tot = Cw+Cm+C
-    bounds = optimize.Bounds(0.0, C_tot, keep_feasible=True)
+    bounds = optimize.Bounds(1e-8, C_tot, keep_feasible=True)
     obj = lambda x: - (power*usr.util(x[0],C_tot-np.sum(x),woman,par) + (1.0-power)*usr.util(x[1],C_tot-np.sum(x),man,par))
     
     # estimate
