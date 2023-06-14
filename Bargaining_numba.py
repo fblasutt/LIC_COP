@@ -39,7 +39,7 @@ class HouseholdModelClass(EconModelClass):
         par = self.par
         
         par.R = 1.03
-        par.beta = 1.0/par.R # Discount factor
+        par.β = 1.0/par.R # Discount factor
         
         par.div_A_share = 0.5 # divorce share of wealth to wife
         
@@ -47,19 +47,17 @@ class HouseholdModelClass(EconModelClass):
         par.inc_w = 1.0
         par.inc_m = 1.0
 
-        # Utility: gender-specific parameters
+        # Utility: CES aggregator or additively linear
         par.ρ = 2.0        # CRRA      
         par.α1 = 1.0
         par.α2 = 1.0
         par.ϕ1 = 0.2
         par.ϕ2 = 0.2
-
-
         
         # production of home good
         par.θ = 0.21 #weight on money vs. time to produce home good
         par.λ = 0.19 #elasticity betwen money and time in public good
-        par.tb = 0.0 # 0.2time spend on public goods by singles
+        par.tb = 0.2 #time spend on public goods by singles
         
         # state variables
         par.T = 10
@@ -272,12 +270,12 @@ class HouseholdModelClass(EconModelClass):
 def solve_single(sol,par,t):
 
     # parameters used for optimization: partial unpacking improves speed
-    parsw=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2)
-    parsm=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2)
+    parsw=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
+    parsm=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
             
     #Function to be minimized later to maximize utility
-    def obj(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,beta,grid_A):
-        return -value_of_choice_single(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,beta,grid_A)
+    def obj(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,β,grid_A):
+        return -value_of_choice_single(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,β,grid_A)
     
     # loop through state variable: wealth
     for iA in range(par.num_A):
@@ -302,17 +300,17 @@ def solve_single(sol,par,t):
         else: # earlier periods
          
             # search over optimal total consumption, C. obj_s=-value of choice of singles
-            argsw=(Mw,woman,sol.Vw_single[t+1],*parsw,par.beta,par.grid_Aw)
-            argsm=(Mm,man  ,sol.Vm_single[t+1],*parsm,par.beta,par.grid_Am)
+            argsw=(Mw,woman,sol.Vw_single[t+1],*parsw,par.β,par.grid_Aw)
+            argsm=(Mm,man  ,sol.Vm_single[t+1],*parsm,par.β,par.grid_Am)
             
             Cw = golden_section_search.optimizer(obj,1.0e-8, Mw-1.0e-8,args=argsw)
             Cm = golden_section_search.optimizer(obj,1.0e-8, Mm-1.0e-8,args=argsm)
             
             # store results
-            sol.Cw_priv_single[idx],sol.Cw_pub_single[idx] = intraperiod_allocation_single(Cw,woman,*parsm)
+            sol.Cw_priv_single[idx],sol.Cw_pub_single[idx] = intraperiod_allocation_single(Cw,woman,*parsw)
             sol.Vw_single[idx] = value_of_choice_single(Cw,*argsw)
             
-            sol.Cm_priv_single[idx],sol.Cm_pub_single[idx] = intraperiod_allocation_single(Cm,man,*parsw)
+            sol.Cm_priv_single[idx],sol.Cm_pub_single[idx] = intraperiod_allocation_single(Cm,man,*parsm)
             sol.Vm_single[idx] = value_of_choice_single(Cm,*argsm)         
  
 
@@ -326,9 +324,16 @@ def solve_couple(sol,par,t):
     #Check participation constrints and eventually update policy function and pareto weights
     check_participation_constraints(remain_Cw_priv,remain_Cm_priv,remain_C_pub,remain_Vw,remain_Vm,par,sol,t)
         
+
 @njit
-def intraperiod_allocation_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2):
-    C_priv = usr.cons_priv_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2)
+def intraperiod_allocation_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
+    
+    args=(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
+    def obj_s(x,Ctot,pgender,pρ,pϕ1,pϕ2,pα1,pα2,pθ,pλ,ptb):#=-utility of consuming x
+        return -usr.util(x,Ctot-x,pgender,pρ,pϕ1,pϕ2,pα1,pα2,pθ,pλ,ptb)
+    
+    #find private and public expenditure to max util
+    C_priv = golden_section_search.optimizer(obj_s,1.0e-6, C_tot - 1.0e-6,args=args) 
     C_pub = C_tot - C_priv
     return C_priv,C_pub
 
@@ -356,12 +361,12 @@ def solve_intraperiod_couple(sol,par):
     
     x0 = np.array([0.33,0.33])#initial condition (to be updated)
     
-    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2)
+    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
     
     @njit
     def uobj(x,ct,pw):#function to minimize
         pubc=ct*(1.0-np.sum(x))
-        return - (pw*usr.util(x[0]*ct,pubc,woman,*pars) + (1.0-pw)*usr.util(x[1]*ct,pubc,man,*pars))
+        return - (pw*usr.util(x[0]*ct,pubc,woman,*pars,True,False) + (1.0-pw)*usr.util(x[1]*ct,pubc,man,*pars,True,False))
     
    
     for iP,power in enumerate(par.grid_power):
@@ -576,13 +581,13 @@ def update_bargaining_index(Sw,Sm,iP, num_power):
             return iP
 
 @njit
-def value_of_choice_single(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,beta,grid_A):
+def value_of_choice_single(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,β,grid_A):
    
     # flow-utility
-    C_priv = usr.cons_priv_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2)
+    C_priv = usr.cons_priv_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
     C_pub = C_tot - C_priv
     
-    Util = usr.util(C_priv,C_pub,gender,ρ,ϕ1,ϕ2,α1,α2)
+    Util = usr.util(C_priv,C_pub,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
     
     # continuation value
     A = M - C_tot
@@ -590,7 +595,7 @@ def value_of_choice_single(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,beta,grid_A)
     Vnext = linear_interp.interp_1d(grid_A,V_next,A)
     
     # return discounted sum
-    return Util + beta*Vnext
+    return Util + β*Vnext
 
 
 
@@ -598,10 +603,10 @@ def value_of_choice_single(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,beta,grid_A)
 @njit
 def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot_Cw_priviP,
         pre_Ctot_Cm_priviP,Vw_plus_vec,Vm_plus_vec, grid_love,num_Ctot,grid_Ctot,
-        ρ,ϕ1,ϕ2,α1,α2,
-        T,grid_A,grid_weight_love,beta,num_shock_love,love_next_vec,savings_vec):
+        ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,
+        T,grid_A,grid_weight_love,β,num_shock_love,love_next_vec,savings_vec):
 
-    pars= (ρ,ϕ1,ϕ2,α1,α2,grid_love[iL])
+    pars= (ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,grid_love[iL],couple,ishom)
     
     # current utility from consumption allocation   
     Cw_priv, Cm_priv, C_pub = intraperiod_allocation(Ctot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priviP,pre_Ctot_Cm_priviP)
@@ -617,8 +622,8 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot
     EVw_plus = Vw_plus_vec @ grid_weight_love
     EVm_plus = Vm_plus_vec @ grid_weight_love
 
-    Vw += beta*EVw_plus
-    Vm += beta*EVm_plus
+    Vw += β*EVw_plus
+    Vm += β*EVm_plus
 
     
     return power*Vw + (1.0-power)*Vm, Cw_priv, Cm_priv, C_pub, Vw,Vm
@@ -632,10 +637,11 @@ def solve_remain_couple(par,sol,t):
     remain_Vw,remain_Vm,remain_Cw_priv,remain_Cm_priv,remain_C_pub = np.ones((5,par.num_love,par.num_A,par.num_power))
     
     #parameters: useful to unpack this to improve speed
-    pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot, par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,
-           par.T,par.grid_A,par.grid_weight_love,par.beta,par.num_shock_love)
+    couple=True;ishome=False
+    pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot, par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,couple,ishome,
+           par.T,par.grid_A,par.grid_weight_love,par.β,par.num_shock_love)
     
-    pars2=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2)
+    pars2=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
     
     for iL in prange(par.num_love):
         
@@ -658,8 +664,8 @@ def solve_remain_couple(par,sol,t):
                     # current utility from consumption allocation
                     remain_Cw_priv[iL,iA,iP], remain_Cm_priv[iL,iA,iP], remain_C_pub[iL,iA,iP] =\
                         intraperiod_allocation(C_tot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP])
-                    remain_Vw[iL,iA,iP] = usr.util(remain_Cw_priv[iL,iA,iP],remain_C_pub[iL,iA,iP],woman,*pars2,par.grid_love[iL])
-                    remain_Vm[iL,iA,iP] = usr.util(remain_Cm_priv[iL,iA,iP],remain_C_pub[iL,iA,iP],man  ,*pars2,par.grid_love[iL])
+                    remain_Vw[iL,iA,iP] = usr.util(remain_Cw_priv[iL,iA,iP],remain_C_pub[iL,iA,iP],woman,*pars2,par.grid_love[iL],couple,ishome)
+                    remain_Vm[iL,iA,iP] = usr.util(remain_Cm_priv[iL,iA,iP],remain_C_pub[iL,iA,iP],man  ,*pars2,par.grid_love[iL],couple,ishome)
                     
                 else:#periods before the last
                             
@@ -702,7 +708,7 @@ def simulate_lifecycle(sim,sol,par):
     
 
     # unpacking some values
-    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2)#single
+    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)#single
     pres=(par.inc_w,par.inc_m,par.R)# resources single
     
     

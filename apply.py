@@ -98,7 +98,7 @@ for model_name in ('model 1','model 2'):
 #Policy Functions
 cmaps = ('viridis','gray')
 model_list = ('model 1','model 2')
-t = 0 
+t = 0
 
 par = models['model 1'].par
 X, Y = np.meshgrid(par.grid_power, par.grid_A,indexing='ij')
@@ -121,7 +121,7 @@ for iL in (par.num_love//2,):
                 
                 ax.set(zlim=[0.0,1.0])
             
-            ax.set(xlabel='$\mu_{t-1}$',ylabel='$A_{t-1}$');
+            ax.set(xlabel='$\mu_{t-1}$',ylabel='$A_{t-1}$',zlabel=f'{var}');
         
         plt.tight_layout();
         
@@ -161,7 +161,7 @@ for init_power_idx in (1,10):
                     y = np.nanmean(y + nan,axis=0)
 
                     ax.plot(y,marker=markers[i],linestyle=linestyles[i],linewidth=linewidth,label=model.spec['latexname']);
-                    ax.set(xlabel='age',ylabel=f'{var}');
+                    ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power_idx}, init_love={init_love}')
 
                 plt.legend()
                 plt.tight_layout()
