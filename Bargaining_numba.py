@@ -142,14 +142,14 @@ class HouseholdModelClass(EconModelClass):
         sol.Vw_plus_vec = np.zeros(par.num_shock_love) 
         sol.Vm_plus_vec = np.zeros(par.num_shock_love) 
 
-        # EGM
-        sol.marg_V_couple = np.zeros(shape_couple)
-        sol.marg_V_remain_couple = np.zeros(shape_couple)
+        # # EGM
+        # sol.marg_V_couple = np.zeros(shape_couple)
+        # sol.marg_V_remain_couple = np.zeros(shape_couple)
 
-        shape_egm = (par.num_power,par.num_love,par.num_A_pd)
-        sol.EmargU_pd = np.zeros(shape_egm)
-        sol.C_tot_pd = np.zeros(shape_egm)
-        sol.M_pd = np.zeros(shape_egm)
+        # shape_egm = (par.num_power,par.num_love,par.num_A_pd)
+        # sol.EmargU_pd = np.zeros(shape_egm)
+        # sol.C_tot_pd = np.zeros(shape_egm)
+        # sol.M_pd = np.zeros(shape_egm)
 
         # pre-compute optimal consumption allocation
         shape_pre = (par.num_power,par.num_Ctot)

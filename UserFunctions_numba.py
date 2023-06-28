@@ -9,7 +9,7 @@ man = 2
 ############################
 @nb.njit
 def home_good(x,θ,λ,tb,couple=False,ishom=False):
-    home_time=(2*tb+ishom+(1-tb)) if couple else tb
+    home_time=(2*tb+ishom*(1-tb)) if couple else tb
     return (θ*x**λ+(1.0-θ)*home_time**λ)**(1.0/λ)
 
 @nb.njit
