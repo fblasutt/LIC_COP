@@ -55,7 +55,7 @@ class HouseholdModelClass(EconModelClass):
         par.ϕ2 = 0.2
         
         # production of home good
-        par.θ = 0.21 #weight on money vs. time to produce home good
+        par.θ = 1.0#0.21 #weight on money vs. time to produce home good
         par.λ = 0.19 #elasticity betwen money and time in public good
         par.tb = 0.2 #time spend on public goods by singles
         
@@ -334,6 +334,7 @@ def intraperiod_allocation_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
     
     #find private and public expenditure to max util
     C_priv = golden_section_search.optimizer(obj_s,1.0e-6, C_tot - 1.0e-6,args=args) 
+    
     C_pub = C_tot - C_priv
     return C_priv,C_pub
 
@@ -584,9 +585,7 @@ def update_bargaining_index(Sw,Sm,iP, num_power):
 def value_of_choice_single(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,β,grid_A):
    
     # flow-utility
-    C_priv = usr.cons_priv_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
-    C_pub = C_tot - C_priv
-    
+    C_priv, C_pub =  intraperiod_allocation_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
     Util = usr.util(C_priv,C_pub,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
     
     # continuation value
@@ -637,7 +636,7 @@ def solve_remain_couple(par,sol,t):
     remain_Vw,remain_Vm,remain_Cw_priv,remain_Cm_priv,remain_C_pub = np.ones((5,par.num_love,par.num_A,par.num_power))
     
     #parameters: useful to unpack this to improve speed
-    couple=True;ishome=False
+    couple=1.0;ishome=0.0
     pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot, par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,couple,ishome,
            par.T,par.grid_A,par.grid_weight_love,par.β,par.num_shock_love)
     
