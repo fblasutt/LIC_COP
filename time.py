@@ -18,7 +18,7 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
 # settings for models to solve
-T = 40
+T = 4
 specs = {
     'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.1,'T':T,'num_love':15}}
 }
@@ -43,9 +43,9 @@ print('Time elapsed is {}'.format(toc-tic))
 # print('Time elapsed is {}'.format(toc-tic))
 
 
-# tic=time.time()
-# model.solve()
-# toc=time.time()
-# print('Time elapsed is {}'.format(toc-tic))
+tic=time.time()
+model.solve()
+toc=time.time()
+print('Time elapsed is {}'.format(toc-tic))
 
-# print('Differences is {}'.format(np.min(model.sol.C_pub_couple-modelj.sol.C_pub_couple)))
+print('Differences is {}'.format(np.min(model.sol.C_pub_couple-modelj.sol.C_pub_couple)))

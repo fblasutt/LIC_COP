@@ -6,17 +6,21 @@ from consav.grids import nonlinspace
 from consav import linear_interp, linear_interp_1d
 from consav import quadrature
 from numba import njit,prange
-from numba import config
+
 from EconModel import EconModelClass, jit
 from quantecon.optimize.nelder_mead import nelder_mead
 # user-specified functions
 import UserFunctions_numba as usr
-from consav import golden_section_search
+
 
 # set gender indication as globals
 woman = 1
 man = 2
+
+from numba import config
 config.DISABLE_JIT = False
+
+
 class HouseholdModelClass(EconModelClass):
     
     def settings(self):
@@ -303,8 +307,8 @@ def solve_single(sol,par,t):
             argsw=(Mw,woman,sol.Vw_single[t+1],*parsw,par.β,par.grid_Aw)
             argsm=(Mm,man  ,sol.Vm_single[t+1],*parsm,par.β,par.grid_Am)
             
-            Cw = golden_section_search.optimizer(obj,1.0e-8, Mw-1.0e-8,args=argsw)
-            Cm = golden_section_search.optimizer(obj,1.0e-8, Mm-1.0e-8,args=argsm)
+            Cw = usr.optimizer(obj,1.0e-8, Mw-1.0e-8,args=argsw)
+            Cm = usr.optimizer(obj,1.0e-8, Mm-1.0e-8,args=argsm)
             
             # store results
             sol.Cw_priv_single[idx],sol.Cw_pub_single[idx] = intraperiod_allocation_single(Cw,woman,*parsw)
@@ -333,7 +337,7 @@ def intraperiod_allocation_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
         return -usr.util(x,Ctot-x,pgender,pρ,pϕ1,pϕ2,pα1,pα2,pθ,pλ,ptb)
     
     #find private and public expenditure to max util
-    C_priv = golden_section_search.optimizer(obj_s,1.0e-6, C_tot - 1.0e-6,args=args) 
+    C_priv = usr.optimizer(obj_s,1.0e-6, C_tot - 1.0e-6,args=args) 
     
     C_pub = C_tot - C_priv
     return C_priv,C_pub
@@ -600,7 +604,7 @@ def value_of_choice_single(C_tot,M,gender,V_next,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,β,
 
 
 @njit
-def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot_Cw_priviP,
+def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,pre_Ctot_Cw_priviP,
         pre_Ctot_Cm_priviP,Vw_plus_vec,Vm_plus_vec, grid_love,num_Ctot,grid_Ctot,
         ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,
         T,grid_A,grid_weight_love,β,num_shock_love,love_next_vec,savings_vec):
@@ -612,26 +616,44 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Vw_next,Vm_next,pre_Ctot
     Vw = usr.util(Cw_priv,C_pub,woman,*pars)
     Vm = usr.util(Cm_priv,C_pub,man  ,*pars)
 
-    # add continuation value
-    savings_vec[:] = M_resources - Ctot
-
-    linear_interp.interp_2d_vec(grid_love,grid_A , Vw_next, love_next_vec,savings_vec,Vw_plus_vec)
-    linear_interp.interp_2d_vec(grid_love,grid_A , Vm_next, love_next_vec,savings_vec,Vm_plus_vec)
-
-    EVw_plus = Vw_plus_vec @ grid_weight_love
-    EVm_plus = Vm_plus_vec @ grid_weight_love
-
+    EVw_plus=linear_interp.interp_1d(grid_A, Eaw, M_resources - Ctot)
+    EVm_plus=linear_interp.interp_1d(grid_A, Eam, M_resources - Ctot)
+    
     Vw += β*EVw_plus
     Vm += β*EVm_plus
 
     
     return power*Vw + (1.0-power)*Vm, Cw_priv, Cm_priv, C_pub, Vw,Vm
 
+@njit#this should be parallelized, but it's tricky...
+def integrate(par,sol,t):
+    
+    Eaw,Eam= np.ones((2,par.num_love,par.num_power,par.num_A))
+    aw=np.ones(par.num_shock_love)
+    am=np.ones(par.num_shock_love)
+    love_next_vec=np.ones((par.num_love,par.num_shock_love))
+    
+    for iL in range(par.num_love):love_next_vec[iL,:] = par.grid_love[iL] + par.grid_shock_love
+    
+    for iL in range(par.num_love):
+        for iP in range(par.num_power):    
+            for iA in range(par.num_A):
+                
+                linear_interp.interp_1d_vec_mon_noprep(par.grid_love,sol.Vw_couple[t+1,iP,:,iA],love_next_vec[iL,:],aw)
+                linear_interp.interp_1d_vec_mon_noprep(par.grid_love,sol.Vm_couple[t+1,iP,:,iA],love_next_vec[iL,:],am)
+                
+                Eaw[iL,iP,iA]=aw @ par.grid_weight_love
+                Eam[iL,iP,iA]=am @ par.grid_weight_love                
+          
+    return Eaw,Eam
 
 
 @njit(parallel=True)
 def solve_remain_couple(par,sol,t):
  
+    #Integration  
+    if t<(par.T-1): Eaw, Eam = integrate(par,sol,t)
+     
     # initialize
     remain_Vw,remain_Vm,remain_Cw_priv,remain_Cm_priv,remain_C_pub = np.ones((5,par.num_love,par.num_A,par.num_power))
     
@@ -645,7 +667,7 @@ def solve_remain_couple(par,sol,t):
     for iL in prange(par.num_love):
         
         #Variables defined in advance to improve speed
-        Vw_plus_vec,Vm_plus_vec=np.ones(len(par.grid_shock_love))+np.nan,np.ones(len(par.grid_shock_love))+np.nan
+        Vw_plus_vec,Vm_plus_vec=np.ones(par.num_shock_love)+np.nan,np.ones(par.num_shock_love)+np.nan
         love_next_vec = par.grid_love[iL] + par.grid_shock_love
         savings_vec = np.ones(par.num_shock_love)
         
@@ -668,13 +690,14 @@ def solve_remain_couple(par,sol,t):
                     
                 else:#periods before the last
                             
+                              
                     #first find optimal total consumption
-                    args=(t,M_resources,iL,par.grid_power[iP],sol.Vw_couple[t+1,iP],sol.Vm_couple[t+1,iP],
+                    args=(t,M_resources,iL,par.grid_power[iP],Eaw[iL,iP,:],Eam[iL,iP,:],
                           sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP],Vw_plus_vec,Vm_plus_vec,*pars1,love_next_vec,savings_vec)             
                    
                     def obj(x,*args):#function to minimize (= maximize value of choice)
                         return - value_of_choice_couple(x,*args)[0] 
-                    C_tot=golden_section_search.optimizer(obj,1.0e-6, M_resources - 1.0e-6,args=args)
+                    C_tot=usr.optimizer(obj,1.0e-6, M_resources - 1.0e-6,args=args)
 
                     # current utility from consumption allocation
                     _, remain_Cw_priv[iL,iA,iP], remain_Cm_priv[iL,iA,iP], remain_C_pub[iL,iA,iP], remain_Vw[iL,iA,iP],remain_Vm[iL,iA,iP] =\
