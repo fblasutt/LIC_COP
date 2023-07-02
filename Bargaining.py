@@ -201,9 +201,9 @@ class HouseholdModelClass(EconModelClass):
 
         # love grid and shock
         if par.num_love>1:
-            par.grid_love = np.linspace(-par.max_love,par.max_love,par.num_love)
+            par.grid_love = np.linspace(-par.max_love,par.max_love,par.num_love)#+200.0
         else:
-            par.grid_love = np.array([0.0])
+            par.grid_love = np.array([0.0])#+200.0
 
         if par.sigma_love<=1.0e-6:
             par.num_shock_love = 1
@@ -380,7 +380,7 @@ class HouseholdModelClass(EconModelClass):
         Vm = usr.util(Cm_priv,C_pub,man,par,love)
 
         # add continuation value
-        if t < (par.T-1):
+        if t <(par.T-1):
             # savings_vec = np.ones(par.num_shock_love)
             sol.savings_vec[:] = M_resources - C_tot #np.repeat(M_resources - C_tot,par.num_shock_love) np.tile(M_resources - C_tot,(par.num_shock_love,)) 
             love_next_vec = love + par.grid_shock_love

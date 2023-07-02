@@ -3,7 +3,7 @@ from mpl_toolkits import mplot3d
 import matplotlib
 import matplotlib.pyplot as plt
 
-import Bargaining_numba as brg
+import Bargaining as brg
 
 # plot style
 linestyles = ['-','--','-.',':',':']
@@ -17,10 +17,10 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
 # settings for models to solve
-T = 8
+T = 2
 specs = {
-    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.0,'T':T}},
-    'model 2':{'latexname':'$\sigma_{\psi}=0.1$', 'par':{'sigma_love':0.1,'T':T}},
+    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.0,'T':T,'num_love':5}},
+    'model 2':{'latexname':'$\sigma_{\psi}=0.1$', 'par':{'sigma_love':0.1,'T':T,'num_love':5}},
 }
 
 # solve different models (takes several minutes)

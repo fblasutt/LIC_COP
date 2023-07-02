@@ -1,10 +1,9 @@
-import numpy as np
-from mpl_toolkits import mplot3d
 import matplotlib
 import matplotlib.pyplot as plt
 import time
 import Bargaining as brg
 import Bargaining_numba as brgj
+import numpy as np
 
 # plot style
 linestyles = ['-','--','-.',':',':']
@@ -18,9 +17,9 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
 # settings for models to solve
-T = 40
+T = 2
 specs = {
-    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.1,'T':T,'num_love':15}}
+    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.1,'T':T,'num_love':5}}
 }
 
 # solve different models (takes several minutes)
@@ -43,9 +42,11 @@ print('Time elapsed is {}'.format(toc-tic))
 # print('Time elapsed is {}'.format(toc-tic))
 
 
-# tic=time.time()
-# model.solve()
-# toc=time.time()
-# print('Time elapsed is {}'.format(toc-tic))
+tic=time.time()
+model.solve()
+toc=time.time()
+print('Time elapsed is {}'.format(toc-tic))
 
-# print('Differences is {}'.format(np.min(model.sol.C_pub_couple-modelj.sol.C_pub_couple)))
+print('Differences is {}'.format(np.min(model.sol.C_pub_couple[0,:,:,:]-modelj.sol.C_pub_couple[0,4,:,:,:])))
+
+print('Differences is {}'.format(np.max(model.sol.Vw_remain_couple[0,:,:,:]-modelj.sol.Vw_remain_couple[0,4,:,:,:])))
