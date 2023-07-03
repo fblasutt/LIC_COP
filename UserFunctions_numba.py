@@ -35,135 +35,109 @@ def resources_single(A,gender,inc_w,inc_m,R):
     return R*A + income
 
 
-###########################
-# Income shocks below     #
-###########################
-
 def labor_income(t0,t1,t2,T,sigma_persistent,sigma_init,npts):
     
 
-    X, Pi = addaco_nonst(T,sigma_persistent,sigma_init,npts)
+    X, Pi =rouw_nonst(T,sigma_persistent,sigma_init,npts)
+    #Pi[T-1]=np.eye(npts).T#numba wants something with the same type...
     
     if sigma_persistent<0.001:    
-        for t in range(T):X[t][:]=0.0
-        for t in range(T):Pi[t]=np.eye(npts)
+        for t in range(T-1):X[t][:]=0.0
+        for t in range(T-1):Pi[t]=np.eye(npts)
         
     for t in range(T):X[t][:]=np.exp(X[t]+t0+t1*t+t2*t**2)
+    
         
     return np.array(X), Pi
-    
-      
-def addaco_nonst(T,sigma_persistent,sigma_init,npts):
-    #Create 
-    
-    # start with creating list of points
-    sd_z = np.sqrt(sigma_init**2 + np.arange(0,T)*(sigma_persistent**2))
-        
-    Int = list()
-    X = list()
-    Pi = list()
-
-    #Probabilities per period
-    Pr=norm.ppf(((np.cumsum(np.ones(npts+1))-1)/npts),0.0,1.0)
-    
-    #Create interval limits
-    for t in range(0,T):Int = Int + [Pr*sd_z[t]]
-        
-    
-    #Create gridpoints
-    for t in range(T):
-        line=np.zeros(npts)
-        for i in range(npts):
-            line[i]= sd_z[t]*npts*(norm.pdf(Int[t][i]  /sd_z[t],0.0,1.0)-\
-                                   norm.pdf(Int[t][i+1]/sd_z[t],0.0,1.0))
-            
-        X = X + [line]
-
-    def integrand(x,e,e1,sd,sds):
-        return np.exp(-(x**2)/(2*sd**2))*(norm.cdf((e1-x)/sds,0.0,1.0)-\
-                                          norm.cdf((e- x)/sds,0.0,1.0))
-            
-            
-    #Fill probabilities
-    for t in range(1,T):
-        Pi_here = np.zeros([npts,npts])
-        for i in range(npts):
-            for jj in range(npts):
-                
-                Pi_here[i,jj]=npts/np.sqrt(2*np.pi*sd_z[t-1]**2)\
-                    *quad(integrand,Int[t-1][i],Int[t-1][i+1],
-                    args=(Int[t][jj],Int[t][jj+1],sd_z[t],sigma_persistent))[0]
-                
-                if T==2:
-                    Pi_here[i,jj]= norm.cdf(Int[t][jj+1],0.0,1.0)-\
-                                   norm.cdf(Int[t][jj ],0.0,1.0)
-                                   
-            #Adjust probabilities to get exactly 1: the integral is an approximation
-            Pi_here[i,:]=Pi_here[i,:]/np.sum(Pi_here[i,:])
-                
-        Pi = Pi + [Pi_here.T]
-        
-        
-    Pi = Pi + [None] # last matrix is not definednsd    
    
+###########################
+# Uncertainty below       #
+###########################
+ 
+def sd_rw(T,sigma_persistent,sigma_init):
+    
+    if isinstance(sigma_persistent,np.ndarray):
+        return np.sqrt([sigma_init**2 + t*sigma_persistent[t]**2 for t in range(T)])
+    else:
+        return np.sqrt(sigma_init**2 + np.arange(0,T)*(sigma_persistent**2))
+    
+def sd_rw_trans(T,sigma_persistent,sigma_init,sigma_transitory):
+    return sd_rw(T, sigma_persistent, sigma_init)
+
+    
+    
+def normcdf_tr(z,nsd=5):
+        
+        z = np.minimum(z, nsd*np.ones_like(z))
+        z = np.maximum(z,-nsd*np.ones_like(z))
+            
+        pup = norm.cdf(nsd,0.0,1.0)
+        pdown = norm.cdf(-nsd,0.0,1.0)
+        const = pup - pdown
+        
+        return (norm.cdf(z,0.0,1.0)-pdown)/const
+    
+    
+def normcdf_ppf(z): return norm.ppf(z,0.0,1.0)       
+        
+    
+
+def rouw_nonst(T=40,sigma_persistent=0.05,sigma_init=0.2,npts=10,sd_z=None):
+   
+    if sd_z is None: sd_z = sd_rw(T,sigma_persistent,sigma_init)
+    assert(npts>=2)
+    Pi = list()
+    X = list()
+    
+    for t in range(0,T):
+        nsd = np.sqrt(npts-1)
+        X = X + [np.linspace(-nsd*sd_z[t],nsd*sd_z[t],num=npts)]
+        if t >= 1: Pi = Pi + [rouw_nonst_one(sd_z[t-1],sd_z[t],npts).T]
+            
+    
     return X, Pi
 
-# @njit(fastmath=True,parallel=True)
-# def mc_simulate(statein,Piin,shocks):
-#     """This simulates transition one period ahead for a Markov chain
-    
-#     Args: 
-#         Statein: numpy array of length n giving the initial state
-#         Piin:    
-#         shocks:
-        
-#     Equivalent to:
-#     for i in prange(len(statein)):
-#        stateout[i]= np.sum(np.cumsum(Piin[statein[i],:])<shocks[i])
-    
-#     """ 
-    
-#     stateout = np.full(statein.size,Piin.shape[1]-1,dtype=np.int16)
-#     for i in prange(len(statein)):
-        
-#         prob=0.0
-#         for j in range(Piin.shape[1]):
-#             if prob<shocks[i]:
-#                 prob=prob+Piin[statein[i],j]
-#             else:             
-#                 stateout[i]=j-1
-#                 break
-    
-#     return stateout 
 
+def rouw_nonst_one(sd0,sd1,npts):
+   
+    # this generates one-period Rouwenhorst transition matrix
+    assert(npts>=2)
+    pi0 = 0.5*(1+(sd0/sd1))
+    Pi = np.array([[pi0,1-pi0],[1-pi0,pi0]])
+    assert(pi0<1)
+    assert(pi0>0)
+    for n in range(3,npts+1):
+        A = np.zeros([n,n])
+        A[0:(n-1),0:(n-1)] = Pi
+        B = np.zeros([n,n])
+        B[0:(n-1),1:n] = Pi
+        C = np.zeros([n,n])
+        C[1:n,1:n] = Pi
+        D = np.zeros([n,n])
+        D[1:n,0:(n-1)] = Pi
+        Pi = pi0*A + (1-pi0)*B + pi0*C + (1-pi0)*D
+        Pi[1:n-1] = 0.5*Pi[1:n-1]
+        
+        assert(np.all(np.abs(np.sum(Pi,axis=1)-1)<1e-5 ))
+    
+    return Pi
 
 @njit(fastmath=True)
 def mc_simulate(statein,Piin,shocks):
     """This simulates transition one period ahead for a Markov chain
     
     Args: 
-        Statein: numpy array of length n giving the initial state
-        Piin:    
-        shocks:
-        
-    Equivalent to:
-    for i in prange(len(statein)):
-       stateout[i]= np.sum(np.cumsum(Piin[statein[i],:])<shocks[i])
+        Statein: scalar giving the initial state
+        Piin: transition matrix n*n [post,initial]
+        shocks: scalar in [0,1]
     
     """ 
-    
-    # prob=0.0
-    # for j in range(Piin.shape[1]):
-    #     if prob<shocks:
-    #         prob=prob+Piin[statein,j]
-    #     else:             
-    #         stateout=j-1
-    #         break
-    
-    # return stateout 
-
     return  np.sum(np.cumsum(Piin[:,statein])<shocks)
 
+
+##########################
+# Other routines below
+##########################
 @njit 
 def optimizer(obj,a,b,args=(),tol=1e-6): 
     """ golden section search optimizer 

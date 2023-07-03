@@ -5,27 +5,24 @@ from EconModel import EconModelClass
 from consav.grids import nonlinspace
 from consav import linear_interp, linear_interp_1d
 from consav import quadrature
-from numba import njit,prange
-from EconModel import EconModelClass, jit
-from quantecon.optimize.nelder_mead import nelder_mead
-# user-specified functions
+from numba import njit,prange,config,set_num_threads
+from EconModel import jit
 import UserFunctions_numba as usr
 
 # set gender indication as globals
 woman = 1
 man = 2
-from numba import config 
+ 
 config.DISABLE_JIT = False
-config.NUMBA_DEBUGINFO = True
-config.NUMBA_DEBUG = True
-config.NUMBA_BOUNDSCHECK = True
-config.NUMBA_FULL_TRACEBACKS = True
+
 
 from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
 import warnings
 
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
+
+
 class HouseholdModelClass(EconModelClass):
     
     def settings(self):
@@ -308,7 +305,7 @@ def solve_single(sol,par,t):
 
     #Integrate first (this can be improved)
     if t<par.T-1: Ew, Em = integrate_single(sol,par,t)
-        
+     
     # parameters used for optimization: partial unpacking improves speed
     parsw=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
     parsm=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
@@ -449,7 +446,7 @@ def solve_intraperiod_couple(sol,par):
 
 
 
-@njit(parallel=True)
+@njit#(parallel=True)
 def check_participation_constraints(remain_Cw_priv, remain_Cm_priv, remain_C_pub, remain_Vw, remain_Vm,par,sol,t):
  
     power_idx=sol.power_idx
