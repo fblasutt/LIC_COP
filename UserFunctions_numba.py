@@ -1,4 +1,4 @@
-from numba import njit
+from numba import njit,prange
 from numba_stats import norm
 from scipy.integrate import quad
 import numpy as np
@@ -107,6 +107,62 @@ def addaco_nonst(T,sigma_persistent,sigma_init,npts):
     Pi = Pi + [None] # last matrix is not definednsd    
    
     return X, Pi
+
+# @njit(fastmath=True,parallel=True)
+# def mc_simulate(statein,Piin,shocks):
+#     """This simulates transition one period ahead for a Markov chain
+    
+#     Args: 
+#         Statein: numpy array of length n giving the initial state
+#         Piin:    
+#         shocks:
+        
+#     Equivalent to:
+#     for i in prange(len(statein)):
+#        stateout[i]= np.sum(np.cumsum(Piin[statein[i],:])<shocks[i])
+    
+#     """ 
+    
+#     stateout = np.full(statein.size,Piin.shape[1]-1,dtype=np.int16)
+#     for i in prange(len(statein)):
+        
+#         prob=0.0
+#         for j in range(Piin.shape[1]):
+#             if prob<shocks[i]:
+#                 prob=prob+Piin[statein[i],j]
+#             else:             
+#                 stateout[i]=j-1
+#                 break
+    
+#     return stateout 
+
+
+@njit(fastmath=True)
+def mc_simulate(statein,Piin,shocks):
+    """This simulates transition one period ahead for a Markov chain
+    
+    Args: 
+        Statein: numpy array of length n giving the initial state
+        Piin:    
+        shocks:
+        
+    Equivalent to:
+    for i in prange(len(statein)):
+       stateout[i]= np.sum(np.cumsum(Piin[statein[i],:])<shocks[i])
+    
+    """ 
+    
+    # prob=0.0
+    # for j in range(Piin.shape[1]):
+    #     if prob<shocks:
+    #         prob=prob+Piin[statein,j]
+    #     else:             
+    #         stateout=j-1
+    #         break
+    
+    # return stateout 
+
+    return  np.sum(np.cumsum(Piin[:,statein])<shocks)
 
 @njit 
 def optimizer(obj,a,b,args=(),tol=1e-6): 
