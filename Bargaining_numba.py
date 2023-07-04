@@ -44,8 +44,8 @@ class HouseholdModelClass(EconModelClass):
     def setup(self):
         par = self.par
         
-        par.R = 1.03
-        par.β = 1.0/par.R # Discount factor
+        par.R = 1.0#3
+        par.β = 1.0#/par.R # Discount factor
         
         par.div_A_share = 0.5 # divorce share of wealth to wife
 
@@ -54,10 +54,10 @@ class HouseholdModelClass(EconModelClass):
         par.α1 = 1.0
         par.α2 = 1.0
         par.ϕ1 = 0.2
-        par.ϕ2 = 0.2
+        par.ϕ2 = (1.0-par.ρ)/par.ϕ1
         
         # production of home good
-        par.θ = 1.0#0.21 #weight on money vs. time to produce home good
+        par.θ = 0.0#0.21 #weight on money vs. time to produce home good
         par.λ = 0.19 #elasticity betwen money and time in public good
         par.tb = 0.2 #time spend on public goods by singles
         
@@ -66,7 +66,7 @@ class HouseholdModelClass(EconModelClass):
         
         # wealth
         par.num_A = 50
-        par.max_A = 5.0
+        par.max_A = 15.0
         
         # bargaining power
         par.num_power = 21
@@ -83,8 +83,8 @@ class HouseholdModelClass(EconModelClass):
         par.num_zm=3
         par.num_z=par.num_zm*par.num_zw
         
-        par.t0w=0.0;par.t1w=0.0;par.t2w=0.0;par.σzw=0.00001;par.σ0zw=0.00004
-        par.t0m=0.0;par.t1m=0.0;par.t2m=0.0;par.σzm=0.00001;par.σ0zm=0.00004
+        par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.σzw=0.1;par.σ0zw=0.00004
+        par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;par.σzm=0.1;par.σ0zm=0.00004
 
         # pre-computation
         par.num_Ctot = 100
@@ -186,6 +186,8 @@ class HouseholdModelClass(EconModelClass):
         sim.power_idx = np.ones(shape_sim,dtype=np.int_)
         sim.power = np.nan + np.ones(shape_sim)
         sim.love = np.nan + np.ones(shape_sim)
+        sim.incw = np.nan + np.ones(shape_sim)
+        sim.incm = np.nan + np.ones(shape_sim)
 
         # shocks
         np.random.seed(par.seed)
@@ -198,7 +200,7 @@ class HouseholdModelClass(EconModelClass):
         sim.init_A = par.grid_A[0] + np.zeros(par.simN)
         sim.init_Aw = par.div_A_share * sim.init_A #np.zeros(par.simN)
         sim.init_Am = (1.0 - par.div_A_share) * sim.init_A #np.zeros(par.simN)
-        sim.init_couple = np.ones(par.simN,dtype=np.bool)
+        sim.init_couple = np.zeros(par.simN,dtype=np.bool)
         sim.init_power_idx = par.num_power//2 * np.ones(par.simN,dtype=np.int_)
         sim.init_love = np.zeros(par.simN)
         sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2
@@ -653,7 +655,8 @@ def value_of_choice_single(C_tot,M,gender,EV_next,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,β
     # continuation value
     A = M - C_tot
     
-    EVnext = linear_interp.interp_1d(grid_A,EV_next,A)
+    #EVnext = linear_interp.interp_1d(grid_A,EV_next,A)
+    EVnext = linear_interp.interp_1d(grid_A,(-EV_next)**(1.0/(1.0-ρ)),A)**(1.0-ρ)/(1.0-ρ)
     
     # return discounted sum
     return Util + β*EVnext
@@ -797,7 +800,8 @@ def simulate_lifecycle(sim,sol,par):
     # unpacking some values to help numba optimize
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)#single
     A=sim.A;Aw=sim.Aw; Am=sim.Am;Cw_priv=sim.Cw_priv;Cw_pub=sim.Cw_pub;Cm_priv=sim.Cm_priv;Cm_pub=sim.Cm_pub
-    couple=sim.couple;power_idx=sim.power_idx;power=sim.power;love=sim.love;draw_love=sim.draw_love;iz=sim.iz
+    couple=sim.couple;power_idx=sim.power_idx;power=sim.power;love=sim.love;draw_love=sim.draw_love;iz=sim.iz;
+    incw=sim.incw;incm=sim.incm
     
     # prepare income shocks
     #inc_shocks_w = usr.mc_simulate
@@ -827,10 +831,11 @@ def simulate_lifecycle(sim,sol,par):
                 #shocks below
                 love[i,t] = love[i,t-1] + par.sigma_love*draw_love[i,t] #useless if single
                 iz[i,t] = usr.mc_simulate(iz[i,t-1],par.Π[t-1],sim.shock_z[i,t])
-                iz_w=iz[i,t]//par.num_z;iz_m=iz[i,t]%par.num_zw
+                iz_w=iz[i,t]//par.num_zm;iz_m=iz[i,t]%par.num_zw
 
             # resources
-            pres=(par.grid_zw[t,iz_w],par.grid_zw[t,iz_m],par.R)
+            incw[i,t]=par.grid_zw[t,iz_w];incm[i,t]=par.grid_zm[t,iz_m]         
+            pres=(incw[i,t],incw[i,t],par.R)
             
             # first check if they want to remain together and what the bargaining power will be if they do.
             if couple_lag:                   
