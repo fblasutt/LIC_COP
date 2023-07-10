@@ -32,10 +32,10 @@ def resources_couple(A,inc_w,inc_m,R):
 def resources_single(A,gender,inc_w,inc_m,R):
     # resources of single individual of gender "gender"
     income = inc_m if gender ==man else inc_w
-    return R*A + income
+    return (R*A + income)*0.00000000000001
 
 
-def labor_income(t0,t1,t2,T,sigma_persistent,sigma_init,npts):
+def labor_income(t0,t1,t2,T,Tr,sigma_persistent,sigma_init,npts):
     
 
     X, Pi =rouw_nonst(T,sigma_persistent,sigma_init,npts)
@@ -50,7 +50,7 @@ def labor_income(t0,t1,t2,T,sigma_persistent,sigma_init,npts):
             
         
     for t in range(T):X[t][:]=np.exp(X[t]+t0+t1*t+t2*t**2)
-    for t in range(15,T):X[t][:]=0.3
+    for t in range(Tr,T):X[t][:]=0.3
 
     return np.array(X), Pi
    

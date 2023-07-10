@@ -17,10 +17,10 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
 # settings for models to solve
-T = 40
+T = 4
 specs = {
-    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.0,'T':T,'num_love':15}},
-    'model 2':{'latexname':'$\sigma_{\psi}=0.1$', 'par':{'sigma_love':0.1,'T':T,'num_love':15}},
+    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.0,'T':T,'num_love':5}},
+    'model 2':{'latexname':'$\sigma_{\psi}=0.1$', 'par':{'sigma_love':0.1,'T':T,'num_love':5}},
 }
 
 # solve different models (takes several minutes)
@@ -45,7 +45,7 @@ for model_name in ('model 1','model 2'):
     izw=iz//model.par.num_zm;izm=iz//model.par.num_zw
     for t in (par.T-1,):
         i = 0
-        for iA in (5,45):
+        for iA in (5,20):
             for iL in (par.num_love//2,par.num_love//2 - 1):
                 for sex in ('women','men'):
                     i += 1
@@ -99,13 +99,13 @@ for model_name in ('model 1','model 2'):
 #Policy Functions
 cmaps = ('viridis','gray')
 model_list = ('model 1','model 2')
-t = 0
-iz=4
+t = 2
+iz=7
 par = models['model 1'].par
 X, Y = np.meshgrid(par.grid_power, par.grid_A,indexing='ij')
 
 for iL in (par.num_love//2,): 
-    for var in ('Vw_couple','Vm_couple','Cw_priv_couple','Cm_priv_couple','C_pub_couple','power'):
+    for var in ('Vw_couple','Vm_couple','Cw_priv_couple','Cm_priv_couple','C_pub_couple','C_tot_couple','power','WLP'):
 
         fig = plt.figure()
         ax = plt.axes(projection='3d')
@@ -126,9 +126,40 @@ for iL in (par.num_love//2,):
         
         plt.tight_layout();
         
+        
+#Policy Functions II
+cmaps = ('viridis','gray')
+model_list = ('model 1','model 1')
+t = 1
+iA=0
+par = models['model 1'].par
+X, Y = np.meshgrid(np.cumsum(np.ones(par.num_z)),par.grid_power,indexing='ij')
+
+for iL in (par.num_love//2,): 
+    for var in ('Vw_couple','Vm_couple','Cw_priv_couple','Cm_priv_couple','C_pub_couple','C_tot_couple','power','WLP'):
+
+        fig = plt.figure()
+        ax = plt.axes(projection='3d')
+        
+        for i,name in enumerate(model_list):
+            model = models[name]
+        
+            Z = getattr(model.sol,var)[t,:,:,iL,iA]
+            
+            alpha = 0.5 if name=='model 1' else 0.7
+            ax.plot_surface(X, Y, Z,rstride=1,cstride=1,cmap=cmaps[i], edgecolor='none',alpha=alpha);
+            
+            if var == 'power': 
+                
+                ax.set(zlim=[0.0,1.0])
+            
+            ax.set(ylabel='$\mu_{t-1}$',xlabel='$z_{t-1}$',zlabel=f'{var}');
+        
+        plt.tight_layout();
+        
 # Simulated Path
 
-var_list = ('Cw_priv','Cm_priv','Cw_pub','C_tot','A','power','power_idx','love','couple')
+var_list = ('Cw_priv','Cm_priv','Cw_pub','C_tot','A','power','power_idx','love','couple','WLP')
 model_list = ('model 1','model 2')
 
 for init_power_idx in (1,10):

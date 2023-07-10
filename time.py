@@ -19,11 +19,11 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 # settings for models to solve
 T = 20
 specs = {
-    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.1,'T':T,'num_love':5}}
+    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.1,'T':T,'Tr':2*T//3,'num_love':5}}
 }
 
 # solve different models (takes several minutes)
-model  = brg.HouseholdModelClass(name='model_1',par=specs['model 1']['par'])
+#model  = brg.HouseholdModelClass(name='model_1',par=specs['model 1']['par'])
 modelj = brgj.HouseholdModelClass(name='model_1',par=specs['model 1']['par'])
 
 
@@ -34,10 +34,10 @@ toc=time.time()
 print('Time elapsed is {}'.format(toc-tic))
 
 
-# tic=time.time()
-# modelj.simulate() 
-# toc=time.time()
-# print('Time elapsed is {}'.format(toc-tic))
+tic=time.time()
+modelj.simulate() 
+toc=time.time()
+print('Time elapsed is {}'.format(toc-tic))
 
 
 # # tic=time.time()
@@ -57,24 +57,24 @@ print('Time elapsed is {}'.format(toc-tic))
 # # print('Differences is {}'.format((modelj.sim.Cw_tot-model.sim.Cw_tot).max()))
 
 
-# #Graph the mean path of assets, income and consumption
-# base=np.cumsum(np.ones(modelj.par.T))
-# fig, ax = plt.subplots(figsize=(11, 8))   #Initialize figure and size
-# ax.plot(base, modelj.sim.incw.mean(axis=0), label="Mean income path") 
-# ax.plot(base, modelj.sim.Cw_tot.mean(axis=0), label="Mean consumption path")
-# ax.plot(base, modelj.sim.Aw.mean(axis=0), label="Mean assets path") 
-# ax.grid()
-# ax.set_xlabel('t')                        #Label of x axis
-# ax.set_ylabel('a, y, c')                  #Label of y axis
-# plt.legend()                              #Plot the legend
-# plt.show()                                #Show the graph
+#Graph the mean path of assets, income and consumption
+base=np.cumsum(np.ones(modelj.par.T))
+fig, ax = plt.subplots(figsize=(11, 8))   #Initialize figure and size
+ax.plot(base, modelj.sim.incw.mean(axis=0), label="Mean income path") 
+ax.plot(base, modelj.sim.C_tot.mean(axis=0), label="Mean consumption path")
+ax.plot(base, modelj.sim.Aw.mean(axis=0), label="Mean assets path") 
+ax.grid()
+ax.set_xlabel('t')                        #Label of x axis
+ax.set_ylabel('a, y, c')                  #Label of y axis
+plt.legend()                              #Plot the legend
+plt.show()                                #Show the graph
 
-# #Graph the cross sectional variance path of income and consumption
-# fig, ax = plt.subplots(figsize=(11, 8))   #Initialize figure and size
-# ax.plot(base, np.var(np.log(modelj.sim.incw),axis=0), label="Variance log income path") 
-# ax.plot(base, np.var(np.log(modelj.sim.Cw_tot),axis=0), label="Variance log consumption path")
-# ax.grid()
-# ax.set_xlabel('t')                        #Label of x axis
-# ax.set_ylabel('Var(y), Var(c)')           #Label of y axis
-# plt.legend()                              #Plot the legend
-# plt.show()                                #Show the graph
+#Graph the cross sectional variance path of income and consumption
+fig, ax = plt.subplots(figsize=(11, 8))   #Initialize figure and size
+ax.plot(base, np.var(np.log(modelj.sim.incw),axis=0), label="Variance log income path") 
+ax.plot(base, np.var(np.log(modelj.sim.C_tot),axis=0), label="Variance log consumption path")
+ax.grid()
+ax.set_xlabel('t')                        #Label of x axis
+ax.set_ylabel('Var(y), Var(c)')           #Label of y axis
+plt.legend()                              #Plot the legend
+plt.show()                                #Show the graph
