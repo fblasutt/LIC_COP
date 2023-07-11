@@ -17,10 +17,10 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
 # settings for models to solve
-T = 40
+T = 4
 specs = {
-    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.0,'T':T,'num_love':15}},
-    'model 2':{'latexname':'$\sigma_{\psi}=0.1$', 'par':{'sigma_love':0.1,'T':T,'num_love':15}},
+    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.0,'T':T,'num_love':5}},
+    'model 2':{'latexname':'$\sigma_{\psi}=0.1$', 'par':{'sigma_love':0.1,'T':T,'num_love':5}},
 }
 
 # solve different models (takes several minutes)
@@ -45,7 +45,7 @@ for model_name in ('model 1','model 2'):
     izw=iz//model.par.num_zm;izm=iz//model.par.num_zw
     for t in (par.T-1,):
         i = 0
-        for iA in (5,45):
+        for iA in (5,20):
             for iL in (par.num_love//2,par.num_love//2 - 1):
                 for sex in ('women','men'):
                     i += 1
@@ -105,7 +105,7 @@ par = models['model 1'].par
 X, Y = np.meshgrid(par.grid_power, par.grid_A,indexing='ij')
 
 for iL in (par.num_love//2,): 
-    for var in ('Vw_couple','Vm_couple','Cw_priv_couple','Cm_priv_couple','C_pub_couple','power'):
+    for var in ('Vw_couple','Vm_couple','Cw_priv_couple','Cm_priv_couple','C_pub_couple','C_tot_couple','power'):
 
         fig = plt.figure()
         ax = plt.axes(projection='3d')

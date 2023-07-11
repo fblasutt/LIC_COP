@@ -32,7 +32,7 @@ def resources_couple(A,inc_w,inc_m,R):
 def resources_single(A,gender,inc_w,inc_m,R):
     # resources of single individual of gender "gender"
     income = inc_m if gender ==man else inc_w
-    return R*A + income
+    return (R*A + income)*0.000001
 
 
 def labor_income(t0,t1,t2,T,sigma_persistent,sigma_init,npts):

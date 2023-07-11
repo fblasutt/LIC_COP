@@ -52,13 +52,13 @@ class HouseholdModelClass(EconModelClass):
 
         # Utility: CES aggregator or additively linear
         par.ρ = 2.0        # CRRA      
-        par.α1 = 1.0
-        par.α2 = 1.0
-        par.ϕ1 = 0.2
+        par.α1 = .5
+        par.α2 = .5
+        par.ϕ1 = 0.2#(1.0-par.ρ)
         par.ϕ2 = (1.0-par.ρ)/par.ϕ1
         
         # production of home good
-        par.θ = 1.0#0.21 #weight on money vs. time to produce home good
+        par.θ = 0.21 #weight on money vs. time to produce home good
         par.λ = 0.19 #elasticity betwen money and time in public good
         par.tb = 0.2 #time spend on public goods by singles
         
@@ -66,7 +66,7 @@ class HouseholdModelClass(EconModelClass):
         par.T = 10
         
         # wealth
-        par.num_A = 25
+        par.num_A = 50
         par.max_A = 15.0
         
         # bargaining power
@@ -84,8 +84,8 @@ class HouseholdModelClass(EconModelClass):
         par.num_zm=3
         par.num_z=par.num_zm*par.num_zw
         
-        par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.σzw=0.1;par.σ0zw=0.00004
-        par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;par.σzm=0.1;par.σ0zm=0.00004
+        par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.σzw=0.00001;par.σ0zw=0.00004
+        par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;par.σzm=0.00001;par.σ0zm=0.00004
 
         # pre-computation
         par.num_Ctot = 100
@@ -201,7 +201,7 @@ class HouseholdModelClass(EconModelClass):
         sim.init_A = par.grid_A[0] + np.zeros(par.simN)
         sim.init_Aw = par.div_A_share * sim.init_A #np.zeros(par.simN)
         sim.init_Am = (1.0 - par.div_A_share) * sim.init_A #np.zeros(par.simN)
-        sim.init_couple = np.zeros(par.simN,dtype=np.bool)
+        sim.init_couple = np.ones(par.simN,dtype=np.bool)
         sim.init_power_idx = par.num_power//2 * np.ones(par.simN,dtype=np.int_)
         sim.init_love = np.zeros(par.simN)
         sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2
@@ -241,7 +241,7 @@ class HouseholdModelClass(EconModelClass):
             par.grid_shock_love,par.grid_weight_love = quadrature.normal_gauss_hermite(par.sigma_love,par.num_shock_love)
 
         # pre-computation
-        par.grid_Ctot = nonlinspace(1.0e-6,par.max_Ctot,par.num_Ctot,1.1)
+        par.grid_Ctot = nonlinspace(1.0e-4,par.max_Ctot,par.num_Ctot,1.1)
 
         # EGM
         par.grid_util = np.nan + np.ones((par.num_power,par.num_Ctot))
@@ -420,7 +420,7 @@ def solve_intraperiod_couple(sol,par):
         
     C_pub,  Cw_priv, Cm_priv = np.ones((3,par.num_power,par.num_Ctot))
     
-    bounds = optimize.Bounds(1e-8, 1.0, keep_feasible=True)#bounds for minimization
+    bounds = optimize.Bounds(1e-8, 1.0-1e-8, keep_feasible=True)#bounds for minimization
     
     x0 = np.array([0.33,0.33])#initial condition (to be updated)
     
@@ -441,7 +441,7 @@ def solve_intraperiod_couple(sol,par):
             # unpack
             sol.pre_Ctot_Cw_priv[iP,i]= res.x[0]*C_tot
             sol.pre_Ctot_Cm_priv[iP,i]= res.x[1]*C_tot
-            sol.pre_Ctot_C_pub[iP,i] = C_tot - Cw_priv[iP,i] - Cm_priv[iP,i]
+            sol.pre_Ctot_C_pub[iP,i] = C_tot - sol.pre_Ctot_Cw_priv[iP,i] - sol.pre_Ctot_Cm_priv[iP,i]
             
             # update initial conidtion
             x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
