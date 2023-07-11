@@ -54,7 +54,7 @@ class HouseholdModelClass(EconModelClass):
         par.ρ = 1.5        # CRRA      
         par.α1 = 0.55
         par.α2 = 0.45
-        par.ϕ1 = 0.1
+        par.ϕ1 = 0.2
         par.ϕ2 = (1.0-par.ρ)/par.ϕ1
         
         # production of home good
@@ -70,7 +70,7 @@ class HouseholdModelClass(EconModelClass):
         par.Tr = 6 # age at retirement
         
         # wealth
-        par.num_A = 25
+        par.num_A = 50
         par.max_A = 15.0
         
         # bargaining power
@@ -88,8 +88,8 @@ class HouseholdModelClass(EconModelClass):
         par.num_zm=3
         par.num_z=par.num_zm*par.num_zw
         
-        par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.σzw=0.1;par.σ0zw=0.5
-        par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;par.σzm=0.1;par.σ0zm=0.5
+        par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.σzw=0.1;par.σ0zw=0.00005
+        par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;par.σzm=0.1;par.σ0zm=0.00005
 
         # pre-computation
         par.num_Ctot = 100
@@ -226,8 +226,8 @@ class HouseholdModelClass(EconModelClass):
 
         # power. non-linear grid with more mass in both tails.
         odd_num = np.mod(par.num_power,2)
-        first_part = nonlinspace(0.0,0.5,(par.num_power+odd_num)//2,1.3)
-        last_part = np.flip(1.0 - nonlinspace(0.0,0.5,(par.num_power-odd_num)//2 + 1,1.3))[1:]
+        first_part = nonlinspace(0.01,0.5,(par.num_power+odd_num)//2,1.3)
+        last_part = np.flip(.99 - nonlinspace(0.01,0.5,(par.num_power-odd_num)//2 + 1,1.3))[1:]
         par.grid_power = np.append(first_part,last_part)
 
         # love grid and shock
@@ -430,7 +430,7 @@ def solve_intraperiod_couple(sol,par):
         
     C_pub,  Cw_priv, Cm_priv = np.ones((3,par.num_power,par.num_Ctot))
     
-    bounds = optimize.Bounds(1e-8, 1.0, keep_feasible=True)#bounds for minimization
+    bounds = optimize.Bounds(0.0, 1.0, keep_feasible=True)#bounds for minimization
     
     x0 = np.array([0.33,0.33])#initial condition (to be updated)
     
@@ -446,12 +446,12 @@ def solve_intraperiod_couple(sol,par):
         for i,C_tot in enumerate(par.grid_Ctot):
             
             # estimate
-            res = optimize.minimize(uobj,x0,bounds=bounds,args=(C_tot,power))
-        
+            res = optimize.minimize(uobj,x0,bounds=bounds,args=(C_tot,power),method='SLSQP')
+            assert res.message=='Optimization terminated successfully'
             # unpack
             sol.pre_Ctot_Cw_priv[iP,i]= res.x[0]*C_tot
             sol.pre_Ctot_Cm_priv[iP,i]= res.x[1]*C_tot
-            sol.pre_Ctot_C_pub[iP,i] = C_tot - Cw_priv[iP,i] - Cm_priv[iP,i]
+            sol.pre_Ctot_C_pub[iP,i] = C_tot - sol.pre_Ctot_Cw_priv[iP,i] - sol.pre_Ctot_Cm_priv[iP,i]
             
             # update initial conidtion
             x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
@@ -687,14 +687,14 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
     Vw = usr.util(Cw_priv,C_pub,woman,*pars)  
     Vm = usr.util(Cm_priv,C_pub,man  ,*pars)  
  
-    # point=np.array([M_resources - Ctot]) 
-    # grid=((0.0,max_A,num_A),)
-    # EVw_plus=eval_cubic(grid,coeffsW,point) 
-    # EVm_plus=eval_cubic(grid,coeffsM,point) 
+    point=np.array([M_resources - Ctot]) 
+    grid=((0.0,max_A,num_A),)
+    EVw_plus=eval_cubic(grid,coeffsW,point) 
+    EVm_plus=eval_cubic(grid,coeffsM,point) 
      
-    point=M_resources - Ctot 
-    EVw_plus=linear_interp.interp_1d(grid_A, Eaw, point)  
-    EVm_plus=linear_interp.interp_1d(grid_A, Eam, point)  
+    # point=M_resources - Ctot 
+    # EVw_plus=linear_interp.interp_1d(grid_A, Eaw, point)  
+    # EVm_plus=linear_interp.interp_1d(grid_A, Eam, point)  
  
  
     Vw += β*EVw_plus  
@@ -744,7 +744,7 @@ def solve_remain_couple(par,sol,t):
     remain_Vw,remain_Vm,remain_Cw_priv,remain_Cm_priv,remain_C_pub = np.ones((5,par.num_z,par.num_love,par.num_A,par.num_power)) 
     wlp = np.ones((par.num_z,par.num_love,par.num_A,par.num_power),dtype=np.int_) 
     #parameters: useful to unpack this to improve speed 
-    couple=1.0;ishome=1.0 
+    couple=1.0;ishome=0.0 
     pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot, par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,couple, 
            par.T,par.grid_A,par.grid_weight_love,par.β,par.num_shock_love,par.max_A,par.num_A) 
      
@@ -768,7 +768,7 @@ def solve_remain_couple(par,sol,t):
                     # continuation values 
                     if t==(par.T-1):#last period 
                   
-                        C_tot = usr.resources_couple(par.grid_A[iA],0.0,par.grid_zw[t,izw]+par.grid_zw[t,izm],par.R) #No savings, it's the last period 
+                        C_tot = usr.resources_couple(par.grid_A[iA],par.grid_zw[t,izm],par.grid_zw[t,izw],par.R) #No savings, it's the last period 
                          
                         # current utility from consumption allocation 
                         remain_Cw_priv[idx], remain_Cm_priv[idx], remain_C_pub[idx] =\
@@ -778,12 +778,12 @@ def solve_remain_couple(par,sol,t):
                          
                     else:#periods before the last 
                                  
-                        coeffsW = 1.0#filter_cubic(( (0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:]) 
-                        coeffsM = 1.0#filter_cubic(( (0.0,par.max_A,par.num_A),), EVm[iz,iL,iP,:]) 
+                        coeffsW = filter_cubic(( (0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:]) 
+                        coeffsM = filter_cubic(( (0.0,par.max_A,par.num_A),), EVm[iz,iL,iP,:]) 
                          
                         def M_resources(wlp):
-                            incw=par.grid_zw[t,izw]*wlp if t<=par.Tr else 0.0
-                            incm=par.grid_zm[t,izw]     if t<=par.Tr else par.grid_zw[t,izw]+par.grid_zm[t,izw]
+                            incw=par.grid_zw[t,izw]*wlp #if t<=par.Tr else 0.0
+                            incm=par.grid_zm[t,izw]     #if t<=par.Tr else par.grid_zw[t,izw]+par.grid_zm[t,izw]
                             
                             return usr.resources_couple(par.grid_A[iA],incw,incm,par.R) 
                         
@@ -929,7 +929,7 @@ def simulate_lifecycle(sim,sol,par):
                 # optimal labor force participation
                 wlpp = sol.WLP[t,iz[i,t],power_idx[i,t]]+0.0
                 wlp[i,t] = 1 if linear_interp.interp_2d(par.grid_love,par.grid_A,wlpp,love[i,t],A_lag)>0.5 else 0
-                pres=(incw[i,t]**par.grid_wlp[wlp[i,t]],incw[i,t],par.R)
+                pres=(incw[i,t]*par.grid_wlp[wlp[i,t]],incw[i,t],par.R)
 
                 # update end-of-period states
                 M_resources = usr.resources_couple(A_lag,*pres) 
