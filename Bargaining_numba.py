@@ -73,7 +73,7 @@ class HouseholdModelClass(EconModelClass):
         par.Tr = 6 # age at retirement
         
         # wealth
-        par.num_A = 50
+        par.num_A = 25
         par.max_A = 15.0
         
         # bargaining power
@@ -158,6 +158,7 @@ class HouseholdModelClass(EconModelClass):
         sol.n_C_tot_remain_couple = np.nan + np.ones(shape_couple)
 
         sol.WLP = np.ones(shape_couple)
+        sol.remain_WLP = np.ones(shape_couple)
         
         sol.power_idx = np.zeros(shape_couple,dtype=np.int_)
         sol.power = np.zeros(shape_couple)
@@ -397,10 +398,10 @@ def solve_single(sol,par,t):
 def solve_couple(sol,par,t):
  
     #Solve the couples's problem for current pareto weight
-    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,wlp=solve_remain_couple(par,sol,t)
+    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp=solve_remain_couple(par,sol,t)
     
     #Check participation constrints and eventually update policy function and pareto weights
-    check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,wlp,par,sol,t)
+    check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp,par,sol,t)
         
 
 @njit
@@ -466,7 +467,7 @@ def solve_intraperiod_couple(sol,par):
 
 
 @njit(parallel=True)
-def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, wlp,par,sol,t):
+def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp,par,sol,t):
  
     power_idx=sol.power_idx
     power=sol.power
@@ -479,8 +480,8 @@ def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,
                 idx_single_w = (t,iz//par.num_zm,iA);idx_single_m = (t,iz%par.num_zw,iA);idd=(iz,iL,iA)
      
                 
-                list_couple = (sol.Vw_couple, sol.Vm_couple, sol.p_Vw_couple, sol.p_Vm_couple, sol.n_Vw_couple, sol.n_Vm_couple,sol.p_C_tot_couple,sol.n_C_tot_couple)#list_start_as_couple
-                list_raw    = (remain_Vw[idd],remain_Vm[idd],p_remain_Vw[idd],p_remain_Vm[idd],n_remain_Vw[idd],n_remain_Vm[idd],p_C_tot[idd],    n_C_tot[idd])#list_remain_couple
+                list_couple = (sol.Vw_couple, sol.Vm_couple, sol.p_Vw_couple, sol.p_Vm_couple, sol.n_Vw_couple, sol.n_Vm_couple,sol.p_C_tot_couple,sol.n_C_tot_couple, sol.WLP)#list_start_as_couple
+                list_raw    = (remain_Vw[idd],remain_Vm[idd],p_remain_Vw[idd],p_remain_Vm[idd],n_remain_Vw[idd],n_remain_Vm[idd],p_C_tot[idd],    n_C_tot[idd],remain_wlp[idd])#list_remain_couple
                 list_single = (sol.Vw_single,sol.Vm_single,sol.Cw_priv_single,sol.Cm_priv_single,sol.Cw_pub_single) # list_trans_to_single: last input here not important in case of divorce
                 list_single_w = (True,False,True,False,True) # list that say whether list_single[i] is about w (as oppoesd to m)
                 
@@ -618,7 +619,7 @@ def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,
                     sol.p_Vm_remain_couple[idx] = p_remain_Vm[idz]
                     sol.n_Vw_remain_couple[idx] = n_remain_Vw[idz]
                     sol.n_Vm_remain_couple[idx] = n_remain_Vm[idz]
-                    sol.WLP[idx] = wlp[idz]
+                    sol.remain_WLP[idx] = remain_wlp[idz]
 
 @njit
 def update_bargaining_index(Sw,Sm,iP, num_power):
@@ -751,8 +752,8 @@ def solve_remain_couple(par,sol,t):
     if t<(par.T-1): EVw, EVm = integrate(par,sol,t)  
  
     # initialize 
-    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot = np.ones((8,par.num_z,par.num_love,par.num_A,par.num_power)) 
-    wlp = np.ones((par.num_z,par.num_love,par.num_A,par.num_power)) 
+    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp = np.ones((9,par.num_z,par.num_love,par.num_A,par.num_power)) 
+
     #parameters: useful to unpack this to improve speed 
     couple=1.0;ishome=0.0 
     pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot, par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,couple, 
@@ -785,7 +786,7 @@ def solve_remain_couple(par,sol,t):
                             intraperiod_allocation(p_C_tot[idx],par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP]) 
                         remain_Vw[idx] = usr.util(remain_Cw_priv,remain_C_pub,woman,*pars2,par.grid_love[iL],couple,ishome) 
                         remain_Vm[idx] = usr.util(remain_Cm_priv,remain_C_pub,man  ,*pars2,par.grid_love[iL],couple,ishome) 
-                        wlp[idx] = 1.0  
+                        remain_wlp[idx] = 1.0  
                     else:#periods before the last 
                                  
                         coeffsW = filter_cubic(( (0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:]) 
@@ -814,18 +815,18 @@ def solve_remain_couple(par,sol,t):
                         # get the probabilit of working, baed on couple utility choices
                         c=np.maximum(p_v_couple/par.σ,n_v_couple/par.σ)
                         v_couple=par.σ*(c+np.log(np.exp(p_v_couple/par.σ-c)+np.exp(n_v_couple/par.σ-c)))
-                        wlp[idx]=np.exp(p_v_couple/par.σ-v_couple/par.σ) # probability of optimal labor supply
+                        remain_wlp[idx]=np.exp(p_v_couple/par.σ-v_couple/par.σ) # probability of optimal labor supply
                         
                         # now the value of making the choice see Shepard (2019), page 11
                         Δp=p_remain_Vw[idx]-p_remain_Vm[idx];Δn=n_remain_Vw[idx]-n_remain_Vm[idx]
-                        remain_Vw[idx]=v_couple+(1.0-par.grid_power[iP])*(wlp[idx]*Δp+(1.0-wlp[idx])*Δn)
-                        remain_Vm[idx]=v_couple+(-par.grid_power[iP])   *(wlp[idx]*Δp+(1.0-wlp[idx])*Δn)
+                        remain_Vw[idx]=v_couple+(1.0-par.grid_power[iP])*(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
+                        remain_Vm[idx]=v_couple+(-par.grid_power[iP])   *(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
 
                         
 
  
     # return objects 
-    return remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, wlp
+    return remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp
 
 #@njit
 def store(sol):
