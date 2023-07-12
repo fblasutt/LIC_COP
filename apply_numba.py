@@ -105,7 +105,7 @@ par = models['model 1'].par
 X, Y = np.meshgrid(par.grid_power, par.grid_A,indexing='ij')
 
 for iL in (par.num_love//2,): 
-    for var in ('Vw_couple','Vm_couple','Cw_priv_couple','Cm_priv_couple','C_pub_couple','C_tot_couple','power','WLP'):
+    for var in ('p_Vw_couple','p_Vm_couple','n_Vw_couple','n_Vm_couple','p_C_tot_couple','n_C_tot_couple','power','WLP'):
 
         fig = plt.figure()
         ax = plt.axes(projection='3d')
@@ -136,7 +136,7 @@ par = models['model 1'].par
 X, Y = np.meshgrid(np.cumsum(np.ones(par.num_z)),par.grid_power,indexing='ij')
 
 for iL in (par.num_love//2,): 
-    for var in ('Vw_couple','Vm_couple','Cw_priv_couple','Cm_priv_couple','C_pub_couple','C_tot_couple','power','WLP'):
+    for var in ('p_Vw_couple','p_Vm_couple','n_Vw_couple','n_Vm_couple','p_C_tot_couple','n_C_tot_couple','power','WLP'):
 
         fig = plt.figure()
         ax = plt.axes(projection='3d')

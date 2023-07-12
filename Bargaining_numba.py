@@ -62,6 +62,9 @@ class HouseholdModelClass(EconModelClass):
         par.λ = 0.19 #elasticity betwen money and time in public good
         par.tb = 0.2 #time spend on public goods by singles
         
+        #Taste shock
+        par.σ = 0.05 #taste shock applied to working/not working
+        
         ####################
         # state variables
         #####################
@@ -136,21 +139,25 @@ class HouseholdModelClass(EconModelClass):
         shape_couple = (par.T,par.num_z,par.num_power,par.num_love,par.num_A)
         sol.Vw_couple = np.nan + np.ones(shape_couple)
         sol.Vm_couple = np.nan + np.ones(shape_couple)
+        sol.p_Vw_couple = np.nan + np.ones(shape_couple)
+        sol.p_Vm_couple = np.nan + np.ones(shape_couple)
+        sol.n_Vw_couple = np.nan + np.ones(shape_couple)
+        sol.n_Vm_couple = np.nan + np.ones(shape_couple)
         
-        sol.Cw_priv_couple = np.nan + np.ones(shape_couple)
-        sol.Cm_priv_couple = np.nan + np.ones(shape_couple)
-        sol.C_pub_couple = np.nan + np.ones(shape_couple)
-        sol.C_tot_couple = np.nan + np.ones(shape_couple)
+        sol.p_C_tot_couple = np.nan + np.ones(shape_couple)
+        sol.n_C_tot_couple = np.nan + np.ones(shape_couple)
 
         sol.Vw_remain_couple = np.nan + np.ones(shape_couple)
         sol.Vm_remain_couple = np.nan + np.ones(shape_couple)
+        sol.p_Vw_remain_couple = np.nan + np.ones(shape_couple)
+        sol.p_Vm_remain_couple = np.nan + np.ones(shape_couple)
+        sol.n_Vw_remain_couple = np.nan + np.ones(shape_couple)
+        sol.n_Vm_remain_couple = np.nan + np.ones(shape_couple)
         
-        sol.Cw_priv_remain_couple = np.nan + np.ones(shape_couple)
-        sol.Cm_priv_remain_couple = np.nan + np.ones(shape_couple)
-        sol.C_pub_remain_couple = np.nan + np.ones(shape_couple)
-        sol.C_tot_remain_couple = np.nan + np.ones(shape_couple)
+        sol.p_C_tot_remain_couple = np.nan + np.ones(shape_couple)
+        sol.n_C_tot_remain_couple = np.nan + np.ones(shape_couple)
 
-        sol.WLP = np.ones(shape_couple,dtype=np.int_)
+        sol.WLP = np.ones(shape_couple)
         
         sol.power_idx = np.zeros(shape_couple,dtype=np.int_)
         sol.power = np.zeros(shape_couple)
@@ -202,8 +209,7 @@ class HouseholdModelClass(EconModelClass):
         sim.draw_love = np.random.normal(size=shape_sim)
         sim.shock_z=np.random.random_sample((par.simN,par.simT))
         sim.shock_z_init=np.random.random_sample((2,par.simN))
-        #shock_zw=np.random.random_sample((par.simN,par.simT))
-        #shock_zm=np.random.random_sample((par.simN,par.simT))
+        sim.shock_taste=np.random.random_sample((par.simN,par.simT))
 
         # initial distribution
         sim.init_A = par.grid_A[0] + np.zeros(par.simN)
@@ -391,10 +397,10 @@ def solve_single(sol,par,t):
 def solve_couple(sol,par,t):
  
     #Solve the couples's problem for current pareto weight
-    remain_Cw_priv,remain_Cm_priv,remain_C_pub,remain_Vw,remain_Vm,wlp=solve_remain_couple(par,sol,t)
+    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,wlp=solve_remain_couple(par,sol,t)
     
     #Check participation constrints and eventually update policy function and pareto weights
-    check_participation_constraints(remain_Cw_priv,remain_Cm_priv,remain_C_pub,remain_Vw,remain_Vm,wlp,par,sol,t)
+    check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,wlp,par,sol,t)
         
 
 @njit
@@ -460,7 +466,7 @@ def solve_intraperiod_couple(sol,par):
 
 
 @njit(parallel=True)
-def check_participation_constraints(remain_Cw_priv, remain_Cm_priv, remain_C_pub, remain_Vw, remain_Vm,wlp,par,sol,t):
+def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, wlp,par,sol,t):
  
     power_idx=sol.power_idx
     power=sol.power
@@ -470,11 +476,11 @@ def check_participation_constraints(remain_Cw_priv, remain_Cm_priv, remain_C_pub
             for iz in range(par.num_z):
                
                 # check the participation constraints
-                idx_single_w = (t,iz//par.num_zm,iA);idx_single_m = (t,iz%par.num_zw,iA)
+                idx_single_w = (t,iz//par.num_zm,iA);idx_single_m = (t,iz%par.num_zw,iA);idd=(iz,iL,iA)
      
                 
-                list_couple = (sol.Vw_couple,sol.Vm_couple,sol.Cw_priv_couple,sol.Cm_priv_couple,sol.C_pub_couple)#list_start_as_couple
-                list_raw = (remain_Vw[iz,iL,iA,:],remain_Vm[iz,iL,iA,:],remain_Cw_priv[iz,iL,iA,:],remain_Cm_priv[iz,iL,iA,:],remain_C_pub[iz,iL,iA,:])#list_remain_couple
+                list_couple = (sol.Vw_couple, sol.Vm_couple, sol.p_Vw_couple, sol.p_Vm_couple, sol.n_Vw_couple, sol.n_Vm_couple,sol.p_C_tot_couple,sol.n_C_tot_couple)#list_start_as_couple
+                list_raw    = (remain_Vw[idd],remain_Vm[idd],p_remain_Vw[idd],p_remain_Vm[idd],n_remain_Vw[idd],n_remain_Vm[idd],p_C_tot[idd],    n_C_tot[idd])#list_remain_couple
                 list_single = (sol.Vw_single,sol.Vm_single,sol.Cw_priv_single,sol.Cm_priv_single,sol.Cw_pub_single) # list_trans_to_single: last input here not important in case of divorce
                 list_single_w = (True,False,True,False,True) # list that say whether list_single[i] is about w (as oppoesd to m)
                 
@@ -603,11 +609,15 @@ def check_participation_constraints(remain_Cw_priv, remain_Cm_priv, remain_C_pub
             for iP in range(par.num_power):
                 for iz in range(par.num_z):
                     idx = (t,iz,iP,iL,iA);idz = (iz,iL,iA,iP)
-                    sol.Cw_priv_remain_couple[idx] = remain_Cw_priv[idz] 
-                    sol.Cm_priv_remain_couple[idx] = remain_Cm_priv[idz]
-                    sol.C_pub_remain_couple[idx] = remain_C_pub[idz]
+
+                    sol.p_C_tot_remain_couple[idx] = p_C_tot[idz]
+                    sol.n_C_tot_remain_couple[idx] = n_C_tot[idz]
                     sol.Vw_remain_couple[idx] = remain_Vw[idz]
                     sol.Vm_remain_couple[idx] = remain_Vm[idz]
+                    sol.p_Vw_remain_couple[idx] = p_remain_Vw[idz]
+                    sol.p_Vm_remain_couple[idx] = p_remain_Vm[idz]
+                    sol.n_Vw_remain_couple[idx] = n_remain_Vw[idz]
+                    sol.n_Vm_remain_couple[idx] = n_remain_Vm[idz]
                     sol.WLP[idx] = wlp[idz]
 
 @njit
@@ -700,7 +710,7 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
     Vw += β*EVw_plus  
     Vm += β*EVm_plus  
        
-    return power*Vw + (1.0-power)*Vm, Cw_priv, Cm_priv, C_pub, Vw,Vm  
+    return power*Vw + (1.0-power)*Vm, Vw,Vm  
 
 @njit#this should be parallelized, but it's tricky... 
 def integrate(par,sol,t): 
@@ -741,8 +751,8 @@ def solve_remain_couple(par,sol,t):
     if t<(par.T-1): EVw, EVm = integrate(par,sol,t)  
  
     # initialize 
-    remain_Vw,remain_Vm,remain_Cw_priv,remain_Cm_priv,remain_C_pub = np.ones((5,par.num_z,par.num_love,par.num_A,par.num_power)) 
-    wlp = np.ones((par.num_z,par.num_love,par.num_A,par.num_power),dtype=np.int_) 
+    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot = np.ones((8,par.num_z,par.num_love,par.num_A,par.num_power)) 
+    wlp = np.ones((par.num_z,par.num_love,par.num_A,par.num_power)) 
     #parameters: useful to unpack this to improve speed 
     couple=1.0;ishome=0.0 
     pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot, par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,couple, 
@@ -750,7 +760,7 @@ def solve_remain_couple(par,sol,t):
      
     pars2=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb) 
      
-     
+    pen=1.0 if t<par.Tr else 1e-6
      
     for iL in prange(par.num_love): 
          
@@ -768,14 +778,14 @@ def solve_remain_couple(par,sol,t):
                     # continuation values 
                     if t==(par.T-1):#last period 
                   
-                        C_tot = usr.resources_couple(par.grid_A[iA],par.grid_zw[t,izm],par.grid_zw[t,izw],par.R) #No savings, it's the last period 
+                        p_C_tot[idx] = usr.resources_couple(par.grid_A[iA],par.grid_zw[t,izm],par.grid_zw[t,izw],par.R) #No savings, it's the last period 
                          
                         # current utility from consumption allocation 
-                        remain_Cw_priv[idx], remain_Cm_priv[idx], remain_C_pub[idx] =\
-                            intraperiod_allocation(C_tot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP]) 
-                        remain_Vw[idx] = usr.util(remain_Cw_priv[idx],remain_C_pub[idx],woman,*pars2,par.grid_love[iL],couple,ishome) 
-                        remain_Vm[idx] = usr.util(remain_Cm_priv[idx],remain_C_pub[idx],man  ,*pars2,par.grid_love[iL],couple,ishome) 
-                         
+                        remain_Cw_priv, remain_Cm_priv, remain_C_pub =\
+                            intraperiod_allocation(p_C_tot[idx],par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP]) 
+                        remain_Vw[idx] = usr.util(remain_Cw_priv,remain_C_pub,woman,*pars2,par.grid_love[iL],couple,ishome) 
+                        remain_Vm[idx] = usr.util(remain_Cm_priv,remain_C_pub,man  ,*pars2,par.grid_love[iL],couple,ishome) 
+                        wlp[idx] = 1.0  
                     else:#periods before the last 
                                  
                         coeffsW = filter_cubic(( (0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:]) 
@@ -794,29 +804,33 @@ def solve_remain_couple(par,sol,t):
                         def obj(x,t,M_resources,ishom,*args):#function to minimize (= maximize value of choice) 
                             return - value_of_choice_couple(x,t,M_resources,*args,ishom)[0]  
                         
-                        C_tot_part  =usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[1]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[1]),0.0,*args))
-                        C_tot_nopart=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[0]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[0]),1.0,*args))
+                        p_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[1]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[1]),0.0,*args))
+                        n_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[0]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[0]),1.0,*args))*pen
      
                         # current utility from consumption allocation 
-                        v_couple_part  =value_of_choice_couple(C_tot_part  ,t,M_resources(par.grid_wlp[1]),*args,0.0)[0]
-                        v_couple_nopart=value_of_choice_couple(C_tot_nopart,t,M_resources(par.grid_wlp[0]),*args,1.0)[0]
+                        p_v_couple, p_remain_Vw[idx], p_remain_Vm[idx] = value_of_choice_couple(p_C_tot[idx],t,M_resources(par.grid_wlp[1]),*args,0.0)
+                        n_v_couple, n_remain_Vw[idx], n_remain_Vm[idx] = value_of_choice_couple(n_C_tot[idx],t,M_resources(par.grid_wlp[0]),*args,1.0)
                         
+                        # get the probabilit of working, baed on couple utility choices
+                        c=np.maximum(p_v_couple/par.σ,n_v_couple/par.σ)
+                        v_couple=par.σ*(c+np.log(np.exp(p_v_couple/par.σ-c)+np.exp(n_v_couple/par.σ-c)))
+                        wlp[idx]=np.exp(p_v_couple/par.σ-v_couple/par.σ) # probability of optimal labor supply
                         
-                        wlp[idx]=np.array([v_couple_nopart,v_couple_part]).argmax() # index of optimal labor supply
-                        C_tot=np.array([C_tot_nopart,C_tot_part])[wlp[idx]] # optimal consumption given iwlp
+                        # now the value of making the choice see Shepard (2019), page 11
+                        Δp=p_remain_Vw[idx]-p_remain_Vm[idx];Δn=n_remain_Vw[idx]-n_remain_Vm[idx]
+                        remain_Vw[idx]=v_couple+(1.0-par.grid_power[iP])*(wlp[idx]*Δp+(1.0-wlp[idx])*Δn)
+                        remain_Vm[idx]=v_couple+(-par.grid_power[iP])   *(wlp[idx]*Δp+(1.0-wlp[idx])*Δn)
+
                         
-                        _, remain_Cw_priv[idx], remain_Cm_priv[idx], remain_C_pub[idx], remain_Vw[idx],remain_Vm[idx] =\
-                            value_of_choice_couple(C_tot,t,M_resources(par.grid_wlp[wlp[idx]]),*args,1.0-par.grid_wlp[wlp[idx]]) 
+
  
     # return objects 
-    return remain_Cw_priv, remain_Cm_priv, remain_C_pub, remain_Vw, remain_Vm, wlp
+    return remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, wlp
 
 #@njit
 def store(sol):
     
     # total consumption
-    sol.C_tot_couple[::] = sol.Cw_priv_couple[::] + sol.Cm_priv_couple[::] + sol.C_pub_couple[::]
-    sol.C_tot_remain_couple[::] = sol.Cw_priv_remain_couple[::] + sol.Cm_priv_remain_couple[::] + sol.C_pub_remain_couple[::]
     sol.Cw_tot_single[::] = sol.Cw_priv_single[::] + sol.Cw_pub_single[::]
     sol.Cm_tot_single[::] = sol.Cm_priv_single[::] + sol.Cm_pub_single[::]
 
@@ -916,22 +930,24 @@ def simulate_lifecycle(sim,sol,par):
             if couple[i,t]:
                 
                 
-                pres=(incw[i,t],incw[i,t],par.R)
+                
+                
+                # first decide about labor participation
+                pr= sol.WLP[t,iz[i,t],power_idx[i,t]] #probability of participation
+                part_i=linear_interp.interp_2d(par.grid_love,par.grid_A,pr,love[i,t],A_lag)
+                wlp[i,t]=(part_i>sim.shock_taste[i,t])
                 
                 # optimal consumption allocation if couple
-                sol_C_tot = sol.C_tot_couple[t,iz[i,t],power_idx[i,t]]
+                sol_C_tot = sol.p_C_tot_couple[t,iz[i,t],power_idx[i,t]] if wlp[i,t]==1 else sol.n_C_tot_couple[t,iz[i,t],power_idx[i,t]] 
                 C_tot = linear_interp.interp_2d(par.grid_love,par.grid_A,sol_C_tot,love[i,t],A_lag)
                 args=(C_tot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[power_idx[i,t]],sol.pre_Ctot_Cm_priv[power_idx[i,t]])
                 Cw_priv[i,t], Cm_priv[i,t], C_pub = intraperiod_allocation(*args)
                 Cw_pub[i,t] = C_pub
                 Cm_pub[i,t] = C_pub
-                
-                # optimal labor force participation
-                wlpp = sol.WLP[t,iz[i,t],power_idx[i,t]]+0.0
-                wlp[i,t] = 1 if linear_interp.interp_2d(par.grid_love,par.grid_A,wlpp,love[i,t],A_lag)>0.5 else 0
-                pres=(incw[i,t]*par.grid_wlp[wlp[i,t]],incw[i,t],par.R)
+            
 
                 # update end-of-period states
+                pres=(incw[i,t]*wlp[i,t],incw[i,t],par.R)
                 M_resources = usr.resources_couple(A_lag,*pres) 
                 A[i,t] = M_resources - Cw_priv[i,t] - Cm_priv[i,t] - Cw_pub[i,t]
 
