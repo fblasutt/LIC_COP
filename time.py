@@ -17,9 +17,9 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
 # settings for models to solve
-T = 40
+T = 10
 specs = {
-    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.1,'T':T,'Tr':2*T//3,'num_love':15}}
+    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.1,'T':T,'Tr':2*T//3,'num_love':5}}
 }
 
 # solve different models (takes several minutes)

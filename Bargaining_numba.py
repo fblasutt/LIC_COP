@@ -45,6 +45,8 @@ class HouseholdModelClass(EconModelClass):
     def setup(self):
         par = self.par
         
+        
+        par.EGM = False #Want to use the EGM method to solve the model?
         par.R = 1.0#3
         par.β = 1.0#/par.R # Discount factor
         
@@ -168,17 +170,17 @@ class HouseholdModelClass(EconModelClass):
         sol.Vw_plus_vec = np.zeros(par.num_shock_love) 
         sol.Vm_plus_vec = np.zeros(par.num_shock_love) 
 
-        # # EGM
-        # sol.marg_V_couple = np.zeros(shape_couple)
-        # sol.marg_V_remain_couple = np.zeros(shape_couple)
+        # EGM
+        sol.marg_V_couple = np.zeros(shape_couple)
+        sol.marg_V_remain_couple = np.zeros(shape_couple)
 
-        # shape_egm = (par.num_power,par.num_love,par.num_A_pd)
-        # sol.EmargU_pd = np.zeros(shape_egm)
-        # sol.C_tot_pd = np.zeros(shape_egm)
-        # sol.M_pd = np.zeros(shape_egm)
+        shape_egm = (par.num_power,par.num_love,par.num_A_pd)
+        sol.EmargU_pd = np.zeros(shape_egm)
+        sol.C_tot_pd = np.zeros(shape_egm)
+        sol.M_pd = np.zeros(shape_egm)
 
         # pre-compute optimal consumption allocation
-        shape_pre = (par.num_power,par.num_Ctot)
+        shape_pre = (par.num_wlp,par.num_power,par.num_Ctot)
         sol.pre_Ctot_Cw_priv = np.nan + np.ones(shape_pre)
         sol.pre_Ctot_Cm_priv = np.nan + np.ones(shape_pre)
         sol.pre_Ctot_C_pub = np.nan + np.ones(shape_pre)
@@ -441,29 +443,39 @@ def solve_intraperiod_couple(sol,par):
     
     x0 = np.array([0.33,0.33])#initial condition (to be updated)
     
-    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
+    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,0.0)
     
     @njit
-    def uobj(x,ct,pw):#function to minimize
+    def uobj(x,ct,pw,ishom):#function to minimize
         pubc=ct*(1.0-np.sum(x))
-        return - (pw*usr.util(x[0]*ct,pubc,woman,*pars,True,False) + (1.0-pw)*usr.util(x[1]*ct,pubc,man,*pars,True,False))
+        return - (pw*usr.util(x[0]*ct,pubc,woman,*pars,ishom,True) + (1.0-pw)*usr.util(x[1]*ct,pubc,man,*pars,ishom,True))
     
-   
-    for iP,power in enumerate(par.grid_power):
-        for i,C_tot in enumerate(par.grid_Ctot):
+    for iwlp,wlp in enumerate(par.grid_wlp):
+        for iP,power in enumerate(par.grid_power):
+            for i,C_tot in enumerate(par.grid_Ctot):
             
-            # estimate
-            res = optimize.minimize(uobj,x0,bounds=bounds,args=(C_tot,power),method='SLSQP')
-            assert res.message=='Optimization terminated successfully'
-            # unpack
-            sol.pre_Ctot_Cw_priv[iP,i]= res.x[0]*C_tot
-            sol.pre_Ctot_Cm_priv[iP,i]= res.x[1]*C_tot
-            sol.pre_Ctot_C_pub[iP,i] = C_tot - sol.pre_Ctot_Cw_priv[iP,i] - sol.pre_Ctot_Cm_priv[iP,i]
+                # estimate
+                res = optimize.minimize(uobj,x0,bounds=bounds,args=(C_tot,power,1.0-wlp),method='SLSQP')
+                assert res.message=='Optimization terminated successfully'
+                # unpack
+                sol.pre_Ctot_Cw_priv[iwlp,iP,i]= res.x[0]*C_tot
+                sol.pre_Ctot_Cm_priv[iwlp,iP,i]= res.x[1]*C_tot
+                sol.pre_Ctot_C_pub[iwlp,iP,i] = C_tot - sol.pre_Ctot_Cw_priv[iwlp,iP,i] - sol.pre_Ctot_Cm_priv[iwlp,iP,i]
+                
+                # update initial conidtion
+                x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
             
-            # update initial conidtion
-            x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
+            
+    # if par.EGM:#do this only if you want to use EGM method
+    #     for iP,power in enumerate(par.grid_power):
+    #         for i,C_tot in enumerate(par.grid_Ctot):
 
-
+    #             par.grid_util[iP,i]=usr.util_C()
+            
+    #             if C_tot<1.00000000e-05:
+    #                 par.grid_marg_u[iP,i] = 100000.0 # some large number. should just be large enough to reduce risk of extrapolation
+    #             else:
+    #                 par.grid_marg_u[iP,i] = marg_util_calc(model,C_tot,iP,iL)
 
 
 @njit(parallel=True)
@@ -783,7 +795,7 @@ def solve_remain_couple(par,sol,t):
                          
                         # current utility from consumption allocation 
                         remain_Cw_priv, remain_Cm_priv, remain_C_pub =\
-                            intraperiod_allocation(p_C_tot[idx],par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP]) 
+                            intraperiod_allocation(p_C_tot[idx],par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[1,iP],sol.pre_Ctot_Cm_priv[1,iP]) 
                         remain_Vw[idx] = usr.util(remain_Cw_priv,remain_C_pub,woman,*pars2,par.grid_love[iL],couple,ishome) 
                         remain_Vm[idx] = usr.util(remain_Cm_priv,remain_C_pub,man  ,*pars2,par.grid_love[iL],couple,ishome) 
                         remain_wlp[idx] = 1.0  
@@ -799,18 +811,21 @@ def solve_remain_couple(par,sol,t):
                             return usr.resources_couple(par.grid_A[iA],incw,incm,par.R) 
                         
                         #first find optimal total consumption 
-                        args=(iL,par.grid_power[iP],EVw[iz,iL,iP,:],EVm[iz,iL,iP,:],coeffsW,coeffsM, 
-                              sol.pre_Ctot_Cw_priv[iP],sol.pre_Ctot_Cm_priv[iP],Vw_plus_vec,Vm_plus_vec,*pars1,love_next_vec,savings_vec)              
+                        p_args=(iL,par.grid_power[iP],EVw[iz,iL,iP,:],EVm[iz,iL,iP,:],coeffsW,coeffsM, 
+                              sol.pre_Ctot_Cw_priv[1,iP],sol.pre_Ctot_Cm_priv[1,iP],Vw_plus_vec,Vm_plus_vec,*pars1,love_next_vec,savings_vec)  
+                        
+                        n_args=(iL,par.grid_power[iP],EVw[iz,iL,iP,:],EVm[iz,iL,iP,:],coeffsW,coeffsM, 
+                              sol.pre_Ctot_Cw_priv[0,iP],sol.pre_Ctot_Cm_priv[0,iP],Vw_plus_vec,Vm_plus_vec,*pars1,love_next_vec,savings_vec)  
                         
                         def obj(x,t,M_resources,ishom,*args):#function to minimize (= maximize value of choice) 
                             return - value_of_choice_couple(x,t,M_resources,*args,ishom)[0]  
                         
-                        p_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[1]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[1]),0.0,*args))
-                        n_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[0]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[0]),1.0,*args))*pen
+                        p_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[1]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[1]),0.0,*p_args))
+                        n_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[0]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[0]),1.0,*n_args))*pen
      
                         # current utility from consumption allocation 
-                        p_v_couple, p_remain_Vw[idx], p_remain_Vm[idx] = value_of_choice_couple(p_C_tot[idx],t,M_resources(par.grid_wlp[1]),*args,0.0)
-                        n_v_couple, n_remain_Vw[idx], n_remain_Vm[idx] = value_of_choice_couple(n_C_tot[idx],t,M_resources(par.grid_wlp[0]),*args,1.0)
+                        p_v_couple, p_remain_Vw[idx], p_remain_Vm[idx] = value_of_choice_couple(p_C_tot[idx],t,M_resources(par.grid_wlp[1]),*p_args,0.0)
+                        n_v_couple, n_remain_Vw[idx], n_remain_Vm[idx] = value_of_choice_couple(n_C_tot[idx],t,M_resources(par.grid_wlp[0]),*n_args,1.0)
                         
                         # get the probabilit of working, baed on couple utility choices
                         c=np.maximum(p_v_couple/par.σ,n_v_couple/par.σ)
@@ -941,7 +956,7 @@ def simulate_lifecycle(sim,sol,par):
                 # optimal consumption allocation if couple
                 sol_C_tot = sol.p_C_tot_couple[t,iz[i,t],power_idx[i,t]] if wlp[i,t]==1 else sol.n_C_tot_couple[t,iz[i,t],power_idx[i,t]] 
                 C_tot = linear_interp.interp_2d(par.grid_love,par.grid_A,sol_C_tot,love[i,t],A_lag)
-                args=(C_tot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[power_idx[i,t]],sol.pre_Ctot_Cm_priv[power_idx[i,t]])
+                args=(C_tot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[wlp[i,t],power_idx[i,t]],sol.pre_Ctot_Cm_priv[wlp[i,t],power_idx[i,t]])
                 Cw_priv[i,t], Cm_priv[i,t], C_pub = intraperiod_allocation(*args)
                 Cw_pub[i,t] = C_pub
                 Cm_pub[i,t] = C_pub
