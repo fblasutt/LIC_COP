@@ -9,11 +9,12 @@ from numba import njit,prange,config,set_num_threads
 from EconModel import jit
 import UserFunctions_numba as usr
 
+
 # set gender indication as globals
 woman = 1
 man = 2
  
-config.DISABLE_JIT = False
+config.DISABLE_JIT = True
 
 
 from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
@@ -46,7 +47,7 @@ class HouseholdModelClass(EconModelClass):
         par = self.par
         
         
-        par.EGM = False #Want to use the EGM method to solve the model?
+        par.EGM = True #Want to use the EGM method to solve the model?
         par.R = 1.0#3
         par.β = 1.0#/par.R # Discount factor
         
@@ -174,7 +175,7 @@ class HouseholdModelClass(EconModelClass):
         sol.marg_V_couple = np.zeros(shape_couple)
         sol.marg_V_remain_couple = np.zeros(shape_couple)
 
-        shape_egm = (par.num_power,par.num_love,par.num_A_pd)
+        shape_egm = (par.num_wlp,par.num_power,par.num_love,par.num_A_pd)
         sol.EmargU_pd = np.zeros(shape_egm)
         sol.C_tot_pd = np.zeros(shape_egm)
         sol.M_pd = np.zeros(shape_egm)
@@ -260,7 +261,7 @@ class HouseholdModelClass(EconModelClass):
         par.grid_Ctot = nonlinspace(1.0e-6,par.max_Ctot,par.num_Ctot,1.1)
 
         # EGM
-        par.grid_util = np.nan + np.ones((par.num_power,par.num_Ctot))
+        par.grid_util = np.nan + np.ones((par.num_wlp,par.num_power,par.num_Ctot))
         par.grid_marg_u = np.nan + np.ones(par.grid_util.shape)
         par.grid_inv_marg_u = np.flip(par.grid_Ctot)
         par.grid_marg_u_for_inv = np.nan + np.ones(par.grid_util.shape)
@@ -450,6 +451,7 @@ def solve_intraperiod_couple(sol,par):
         pubc=ct*(1.0-np.sum(x))
         return - (pw*usr.util(x[0]*ct,pubc,woman,*pars,ishom,True) + (1.0-pw)*usr.util(x[1]*ct,pubc,man,*pars,ishom,True))
     
+    util_C=np.ones(sol.pre_Ctot_Cw_priv.shape)#couple's utility
     for iwlp,wlp in enumerate(par.grid_wlp):
         for iP,power in enumerate(par.grid_power):
             for i,C_tot in enumerate(par.grid_Ctot):
@@ -464,18 +466,28 @@ def solve_intraperiod_couple(sol,par):
                 
                 # update initial conidtion
                 x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
+                
+                # update couple's utility
+                util_C[iwlp,iP,i] = -res.fun
+                
+               
+                
             
-            
-    # if par.EGM:#do this only if you want to use EGM method
-    #     for iP,power in enumerate(par.grid_power):
-    #         for i,C_tot in enumerate(par.grid_Ctot):
+    if par.EGM:#do this only if you want to use EGM method
+        for iwlp,wlp in enumerate(par.grid_wlp):
+            for iP,power in enumerate(par.grid_power):
+                for i,C_tot in enumerate(par.grid_Ctot):
+    
+                    par.grid_util[iwlp,iP,i]=usr.util_C(sol.pre_Ctot_Cw_priv[iwlp,iP,i],sol.pre_Ctot_Cm_priv[iwlp,iP,i],sol.pre_Ctot_C_pub[iwlp,iP,i],\
+                                          power,*pars,ishom=1.0-wlp)
+                    if i>0:
+                        par.grid_marg_u[iwlp,iP,i-1] = (util_C[iwlp,iP,i]-util_C[iwlp,iP,i-1])/(C_tot-par.grid_Ctot[i-1])
+                        
+                        if (i==par.num_Ctot-1): par.grid_marg_u[iwlp,iP,i]=par.grid_marg_u[iwlp,iP,i-1]
+                
+                grid_marg_u_for_inv=np.flip(par.grid_marg_u[iwlp,:])
+                            
 
-    #             par.grid_util[iP,i]=usr.util_C()
-            
-    #             if C_tot<1.00000000e-05:
-    #                 par.grid_marg_u[iP,i] = 100000.0 # some large number. should just be large enough to reduce risk of extrapolation
-    #             else:
-    #                 par.grid_marg_u[iP,i] = marg_util_calc(model,C_tot,iP,iL)
 
 
 @njit(parallel=True)

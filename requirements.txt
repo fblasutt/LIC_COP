@@ -1,0 +1,31 @@
+alabaster @ file:///home/ktietz/src/ci/alabaster_1611921544520/work
+backcall @ file:///home/ktietz/src/ci/backcall_1611930011877/work
+certifi @ file:///C:/b/abs_85o_6fm0se/croot/certifi_1671487778835/work/certifi
+cloudpickle @ file:///tmp/build/80754af9/cloudpickle_1632508026186/work
+colorama @ file:///C:/b/abs_a9ozq0l032/croot/colorama_1672387194846/work
+debugpy @ file:///C:/ci/debugpy_1637091911212/work
+decorator @ file:///opt/conda/conda-bld/decorator_1643638310831/work
+entrypoints @ file:///C:/ci/entrypoints_1649926659561/work
+ipykernel @ file:///C:/b/abs_21ykzkm7y_/croots/recipe/ipykernel_1662361803478/work
+ipython @ file:///C:/Windows/TEMP/abs_45b5zb1l7q/croots/recipe/ipython_1659529855872/work
+jedi @ file:///C:/ci/jedi_1644297241925/work
+jupyter_client @ file:///C:/b/abs_d8fk_kz9zk/croot/jupyter_client_1676330195659/work
+jupyter_core @ file:///C:/b/abs_b8r5lb5eus/croot/jupyter_core_1668084445779/work
+matplotlib-inline @ file:///C:/ci/matplotlib-inline_1661934089728/work
+nest-asyncio @ file:///C:/b/abs_3a_4jsjlqu/croot/nest-asyncio_1672387322800/work
+packaging @ file:///C:/b/abs_cfsup8ur87/croot/packaging_1671697442297/work
+parso @ file:///opt/conda/conda-bld/parso_1641458642106/work
+pickleshare @ file:///tmp/build/80754af9/pickleshare_1606932040724/work
+prompt-toolkit @ file:///C:/b/abs_6coz5_9f2s/croot/prompt-toolkit_1672387908312/work
+psutil @ file:///C:/Windows/Temp/abs_b2c2fd7f-9fd5-4756-95ea-8aed74d0039flsd9qufz/croots/recipe/psutil_1656431277748/work
+Pygments @ file:///opt/conda/conda-bld/pygments_1644249106324/work
+python-dateutil @ file:///tmp/build/80754af9/python-dateutil_1626374649649/work
+pywin32==305.1
+pyzmq @ file:///C:/ci/pyzmq_1657597757589/work
+six @ file:///tmp/build/80754af9/six_1644875935023/work
+sklearn==0.0.post5
+spyder-kernels @ file:///C:/b/abs_bcwwacv768/croots/recipe/spyder-kernels_1662457887005/work
+tornado @ file:///C:/ci/tornado_1662476933490/work
+traitlets @ file:///C:/b/abs_e5m_xjjl94/croot/traitlets_1671143896266/work
+wcwidth @ file:///Users/ktietz/demo/mc3/conda-bld/wcwidth_1629357192024/work
+wincertstore==0.2

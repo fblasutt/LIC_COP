@@ -4,7 +4,7 @@ from scipy.integrate import quad
 import numpy as np
 
 from numba import config 
-config.DISABLE_JIT = False
+config.DISABLE_JIT = True
 
 # set gender indication as globals
 woman = 1
@@ -24,7 +24,7 @@ def util(c_priv,c_pub,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ish
     return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+ love
 
 @njit
-def util_C(Cw_priv,Cm_priv,C_pub,love,power,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,ishom=0.0):
+def util_C(Cw_priv,Cm_priv,C_pub,power,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love,ishom=0.0):
     
     Uw = util(Cw_priv,C_pub,woman,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=love,couple=1.0,ishom=0.0)
     Um = util(Cm_priv,C_pub,man,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=love,couple=1.0,ishom=0.0)
