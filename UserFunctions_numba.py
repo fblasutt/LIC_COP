@@ -4,7 +4,7 @@ from scipy.integrate import quad
 import numpy as np
 
 from numba import config 
-config.DISABLE_JIT = True
+config.DISABLE_JIT = False
 
 # set gender indication as globals
 woman = 1
@@ -26,10 +26,10 @@ def util(c_priv,c_pub,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ish
 @njit
 def util_C(Cw_priv,Cm_priv,C_pub,power,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love,ishom=0.0):
     
-    Uw = util(Cw_priv,C_pub,woman,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=love,couple=1.0,ishom=0.0)
-    Um = util(Cm_priv,C_pub,man,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=love,couple=1.0,ishom=0.0)
+    Uw = util(Cw_priv,C_pub,woman,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=love,couple=1.0,ishom=ishom)
+    Um = util(Cm_priv,C_pub,man  ,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=love,couple=1.0,ishom=ishom)
     
-    return power*Uw + (1-power)*Um
+    return power*Uw + (1-0-power)*Um
 
 @njit
 def resources_couple(A,inc_w,inc_m,R):
@@ -41,6 +41,9 @@ def resources_single(A,gender,inc_w,inc_m,R):
     # resources of single individual of gender "gender"
     income = inc_m if gender ==man else inc_w
     return (R*A + income)*0.00000000000001
+
+
+
 
 
 
