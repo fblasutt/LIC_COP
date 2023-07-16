@@ -47,7 +47,7 @@ class HouseholdModelClass(EconModelClass):
         par = self.par
         
         
-        par.EGM = False #Want to use the EGM method to solve the model?
+        par.EGM = True #Want to use the EGM method to solve the model?
         par.R = 1.0#3
         par.β = 1.0#/par.R # Discount factor
         
@@ -447,8 +447,8 @@ def intraperiod_allocation_vector(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_
     # interpolate pre-computed solution
     Cw_priv,Cm_priv=np.ones((2,num_Ctot))
     
-    linear_interp.interp_1d_vec_mon_noprep(grid_Ctot,pre_Ctot_Cw_priv,C_tot,Cw_priv)
-    linear_interp.interp_1d_vec_mon_noprep(grid_Ctot,pre_Ctot_Cm_priv,C_tot,Cm_priv)
+    linear_interp.interp_1d_vec(grid_Ctot,pre_Ctot_Cw_priv,C_tot,Cw_priv)
+    linear_interp.interp_1d_vec(grid_Ctot,pre_Ctot_Cm_priv,C_tot,Cm_priv)
 
     return Cw_priv, Cm_priv, C_tot - Cw_priv - Cm_priv
 
@@ -813,9 +813,9 @@ def integrate(par,sol,t):
             for iA in range(par.num_A): 
                 for iz in range(par.num_z): 
                     #Integrate love shocks
-                    linear_interp.interp_1d_vec_mon_noprep(par.grid_love,pEVw[iz,:,iP,iA],love_next_vec[iL,:],aw) 
-                    linear_interp.interp_1d_vec_mon_noprep(par.grid_love,pEVm[iz,:,iP,iA],love_next_vec[iL,:],am)
-                    linear_interp.interp_1d_vec_mon_noprep(par.grid_love,pEVd[iz,:,iP,iA],love_next_vec[iL,:],ad)
+                    linear_interp.interp_1d_vec(par.grid_love,pEVw[iz,:,iP,iA],love_next_vec[iL,:],aw) 
+                    linear_interp.interp_1d_vec(par.grid_love,pEVm[iz,:,iP,iA],love_next_vec[iL,:],am)
+                    linear_interp.interp_1d_vec(par.grid_love,pEVd[iz,:,iP,iA],love_next_vec[iL,:],ad)
                      
                     EVw[iz,iL,iP,iA]=aw @ par.grid_weight_love 
                     EVm[iz,iL,iP,iA]=am @ par.grid_weight_love 
@@ -824,7 +824,7 @@ def integrate(par,sol,t):
     return EVw,EVm,par.R*par.β*EVd
 
 
-@njit#(parallel=True) 
+@njit(parallel=True) 
 def solve_remain_couple_egm(par,sol,t): 
  
     #Integration    
@@ -876,23 +876,27 @@ def solve_remain_couple_egm(par,sol,t):
                     if t>=par.Tr:n_C_pd=np.zeros(n_C_pd.shape)+1e-6 
                     
                     # use budget constraint to get current resources
-                    p_A_now =  (par.grid_A + p_C_pd - par.grid_zm[t,izw] - par.grid_zm[t,izw]*par.grid_wlp[1])/par.R
-                    n_A_now =  (par.grid_A + n_C_pd - par.grid_zm[t,izw] - par.grid_zm[t,izw]*par.grid_wlp[0])/par.R
-                    
+                    p_A_now =  (par.grid_A.flatten() + p_C_pd - par.grid_zm[t,izw] - par.grid_zm[t,izw]*par.grid_wlp[1])/par.R
+                    n_A_now =  (par.grid_A.flatten() + n_C_pd - par.grid_zm[t,izw] - par.grid_zm[t,izw]*par.grid_wlp[0])/par.R                
                     
                     # now interpolate onto common beginning-of-period asset grid to get consumption
                     linear_interp.interp_1d_vec(p_A_now,p_C_pd,par.grid_A,p_C_tot[iz,iL,:,iP])
                     linear_interp.interp_1d_vec(n_A_now,n_C_pd,par.grid_A,n_C_tot[iz,iL,:,iP])
                     
-                     
-
+                    # make sure that the no-borrowing constraint is respected
+                    p_resources = usr.resources_couple(par.grid_A,par.grid_zw[t,izw]*par.grid_wlp[1],par.grid_zm[t,izw],par.R) 
+                    n_resources = usr.resources_couple(par.grid_A,par.grid_zw[t,izw]*par.grid_wlp[0],par.grid_zm[t,izw],par.R)
+                    
+                    p_C_tot[iz,iL,:,iP] = np.minimum(p_C_tot[iz,iL,:,iP], p_resources)
+                    n_C_tot[iz,iL,:,iP] = np.minimum(n_C_tot[iz,iL,:,iP], n_resources)
+                    
                     # value of choices below: first participation...
                     p_remain_Cw_priv, p_remain_Cm_priv, p_remain_C_pub =\
                         intraperiod_allocation_vector(p_C_tot[iz,iL,:,iP],par.num_A,par.grid_Ctot,sol.pre_Ctot_Cw_priv[1,iP],sol.pre_Ctot_Cm_priv[1,iP]) 
                                           
-                    p_resources = usr.resources_couple(par.grid_A,par.grid_zm[t,izw]*par.grid_wlp[1],par.grid_zm[t,izw],par.R) -  p_C_tot[iz,iL,:,iP]
-                    linear_interp.interp_1d_vec_mon_noprep(par.grid_A,EVw[iz,iL,iP,:],p_resources,p_Ew)
-                    linear_interp.interp_1d_vec_mon_noprep(par.grid_A,EVm[iz,iL,iP,:],p_resources,p_Em)
+                    
+                    linear_interp.interp_1d_vec(par.grid_A,EVw[iz,iL,iP,:],p_resources-p_C_tot[iz,iL,:,iP],p_Ew)
+                    linear_interp.interp_1d_vec(par.grid_A,EVm[iz,iL,iP,:],p_resources-p_C_tot[iz,iL,:,iP],p_Em)
                     p_remain_Vw[iz,iL,:,iP] = usr.util(p_remain_Cw_priv,p_remain_C_pub,woman,*pars2,love,couple,1.0-par.grid_wlp[1])+par.β*p_Ew                        
                     p_remain_Vm[iz,iL,:,iP] = usr.util(p_remain_Cm_priv,p_remain_C_pub,man  ,*pars2,love,couple,1.0-par.grid_wlp[1])+par.β*p_Em
                     p_v_couple = power*p_remain_Vw[iz,iL,:,iP]+(1.0-power)*p_remain_Vm[iz,iL,:,iP]
@@ -901,9 +905,9 @@ def solve_remain_couple_egm(par,sol,t):
                     n_remain_Cw_priv, n_remain_Cm_priv, n_remain_C_pub =\
                         intraperiod_allocation_vector(n_C_tot[iz,iL,:,iP],par.num_A,par.grid_Ctot,sol.pre_Ctot_Cw_priv[0,iP],sol.pre_Ctot_Cm_priv[0,iP]) 
                         
-                    n_resources = usr.resources_couple(par.grid_A,par.grid_zm[t,izw]*par.grid_wlp[0],par.grid_zm[t,izw],par.R) -  n_C_tot[iz,iL,:,iP]
-                    linear_interp.interp_1d_vec_mon_noprep(par.grid_A,EVw[iz,iL,iP,:],n_resources,n_Ew)
-                    linear_interp.interp_1d_vec_mon_noprep(par.grid_A,EVm[iz,iL,iP,:],n_resources,n_Em)                                    
+                    
+                    linear_interp.interp_1d_vec(par.grid_A,EVw[iz,iL,iP,:],n_resources-n_C_tot[iz,iL,:,iP],n_Ew)
+                    linear_interp.interp_1d_vec(par.grid_A,EVm[iz,iL,iP,:],n_resources-n_C_tot[iz,iL,:,iP],n_Em)                                    
                     n_remain_Vw[iz,iL,:,iP] = usr.util(n_remain_Cw_priv,n_remain_C_pub,woman,*pars2,love,couple,1.0-par.grid_wlp[0])+par.β*n_Ew                        
                     n_remain_Vm[iz,iL,:,iP] = usr.util(n_remain_Cm_priv,n_remain_C_pub,man  ,*pars2,love,couple,1.0-par.grid_wlp[0])+par.β*n_Em
                     n_v_couple = power*n_remain_Vw[iz,iL,:,iP]+(1.0-power)*n_remain_Vm[iz,iL,:,iP]
@@ -920,8 +924,8 @@ def solve_remain_couple_egm(par,sol,t):
                     remain_Vm[iz,iL,:,iP]=v_couple+(-par.grid_power[iP])   *(remain_wlp[iz,iL,:,iP]*Δp+(1.0-remain_wlp[iz,iL,:,iP])*Δn)
  
                     # finally compute marginal utility of consumption
-                    linear_interp.interp_1d_vec_mon_noprep(par.grid_Ctot,par.grid_marg_u[1,iP,:],p_C_tot[iz,iL,:,iP],p_remain_Vd)
-                    linear_interp.interp_1d_vec_mon_noprep(par.grid_Ctot,par.grid_marg_u[0,iP,:],n_C_tot[iz,iL,:,iP],n_remain_Vd)
+                    linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_marg_u[1,iP,:],p_C_tot[iz,iL,:,iP],p_remain_Vd)
+                    linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_marg_u[0,iP,:],n_C_tot[iz,iL,:,iP],n_remain_Vd)
                     remain_Vd[iz,iL,:,iP]=remain_wlp[iz,iL,:,iP]*p_remain_Vd+(1.0-remain_wlp[iz,iL,:,iP])*n_remain_Vd
  
     # return objects 

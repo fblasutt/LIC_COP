@@ -45,21 +45,14 @@ def resources_single(A,gender,inc_w,inc_m,R):
 
 
 
-
-
 def labor_income(t0,t1,t2,T,Tr,sigma_persistent,sigma_init,npts):
     
 
     X, Pi =rouw_nonst(T,sigma_persistent,sigma_init,npts)
-    #Pi[T-1]=np.eye(npts).T#numba wants something with the same type...
     
     if sigma_persistent<0.001:    
         for t in range(T-1):X[t][:]=0.0
         for t in range(T-1):Pi[t]=np.eye(npts)
-        
-    #for t in range(T):X[t][:]=np.array([-0.2,0.0,0.2])
-    #for t in range(T-1):Pi[t][:]=np.ones((npts,npts))*0.33333
-            
         
     for t in range(T):X[t][:]=np.exp(X[t]+t0+t1*t+t2*t**2)
     for t in range(Tr,T):X[t][:]=0.3
