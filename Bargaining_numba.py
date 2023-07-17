@@ -9,7 +9,8 @@ from numba import njit,prange,config,set_num_threads
 from EconModel import jit
 import UserFunctions_numba as usr
 from interpolation.splines import prefilter,eval_spline
-
+from quantecon.optimize.nelder_mead import nelder_mead
+from interpolation.splines import prefilter,eval_spline
 # set gender indication as globals
 woman = 1
 man = 2
@@ -287,7 +288,6 @@ class HouseholdModelClass(EconModelClass):
             sol = model.sol
             
             # precompute the optimal intra-temporal consumption allocation for couples given total consumpotion
-            # this needs to be jitted at some point
             solve_intraperiod_couple(sol,par)
             
             # loop backwards and obtain policy functions
@@ -452,94 +452,53 @@ def intraperiod_allocation_vector(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_
 
     return Cw_priv, Cm_priv, C_tot - Cw_priv - Cm_priv
 
-def util_C(Ctot,power,wlp,sol,par):
-    
-    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,0.0)
-    bounds = optimize.Bounds(0.0, 1.0, keep_feasible=True)#bounds for minimization
-    @njit
-    def uobj(x,ct,pw,ishom):#function to minimize
-        pubc=ct*(1.0-np.sum(x))
-        return - (pw*usr.util(x[0]*ct,pubc,woman,*pars,ishom,True) + (1.0-pw)*usr.util(x[1]*ct,pubc,man,*pars,ishom,True))
-    
-    res = optimize.minimize(uobj,np.array([0.33,0.33]),bounds=bounds,args=(Ctot,power,1.0-wlp),method='SLSQP',tol=1e-10)
-    
-    return -uobj(res.x,Ctot,power,1.0-wlp)
-
-
-def marg_util_C(Ctot,power,wlp,sol,par,step=1.0e-3):
   
-    forward = util_C(Ctot+step,power,wlp,sol,par)
-    backward = util_C(Ctot-step,power,wlp,sol,par)
-    
-    return (forward - backward)/(2*step)
-    
-    
-#@njit at some point this needs to be jiited...
+@njit(parallel=True)
 def solve_intraperiod_couple(sol,par):
         
-    C_pub,  Cw_priv, Cm_priv = np.ones((3,par.num_power,par.num_Ctot))
-    
-    bounds = optimize.Bounds(0.0, 1.0, keep_feasible=True)#bounds for minimization
-    
-    x0 = np.array([0.33,0.33])#initial condition (to be updated)
-    
+    # unpack to help numba
+    C_pub,  Cw_priv, Cm_priv, grid_marg_u, grid_marg_u_for_inv = sol.pre_Ctot_C_pub, sol.pre_Ctot_Cw_priv, sol.pre_Ctot_Cm_priv, par.grid_marg_u, par.grid_marg_u_for_inv
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,0.0)
     
-    @njit
-    def uobj(x,ct,pw,ishom):#function to minimize
+    bounds = np.array([[0.0,1.0],[0.0,1.0]]) # minimization bounds
+    ϵ = par.grid_Ctot[0]/2.0 # to compute numerical deratives
+      
+    def uobj(x,ct,pw,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
         pubc=ct*(1.0-np.sum(x))
-        return - (pw*usr.util(x[0]*ct,pubc,woman,*pars,ishom,True) + (1.0-pw)*usr.util(x[1]*ct,pubc,man,*pars,ishom,True))
+        return (pw*usr.util(x[0]*ct,pubc,woman,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True) +\
+          (1.0-pw)*usr.util(x[1]*ct,pubc,man,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True))
     
-    # @njit
-    # def eval(a,b,c):
-    #     return eval_cubic(a,b,c)
-    
-    util_C=np.ones(sol.pre_Ctot_Cw_priv.shape)#couple's utility
-    for iwlp,wlp in enumerate(par.grid_wlp):
-        for iP,power in enumerate(par.grid_power):
-            for i,C_tot in enumerate(par.grid_Ctot):
+    for iP in prange(par.num_power):
+        
+        x0 = np.array([0.33,0.33])#initial condition (to be updated)
+        for iwlp in range(par.num_wlp):
+            for i in range(par.num_Ctot):
+                
+                C_tot=par.grid_Ctot[i]
+                wlp=par.grid_wlp[iwlp]
+                power=par.grid_power[iP]
             
                 # estimate
-                res = optimize.minimize(uobj,x0,bounds=bounds,args=(C_tot,power,1.0-wlp),method='SLSQP')
-                assert res.message=='Optimization terminated successfully'
+                res = nelder_mead(uobj,x0,bounds=bounds,args=(C_tot,power,1.0-wlp,*pars))
+
                 # unpack
-                sol.pre_Ctot_Cw_priv[iwlp,iP,i]= res.x[0]*C_tot
-                sol.pre_Ctot_Cm_priv[iwlp,iP,i]= res.x[1]*C_tot
-                sol.pre_Ctot_C_pub[iwlp,iP,i] = C_tot - sol.pre_Ctot_Cw_priv[iwlp,iP,i] - sol.pre_Ctot_Cm_priv[iwlp,iP,i]
+                Cw_priv[iwlp,iP,i]= res.x[0]*C_tot
+                Cm_priv[iwlp,iP,i]= res.x[1]*C_tot
+                C_pub[iwlp,iP,i] = C_tot - Cw_priv[iwlp,iP,i] - Cm_priv[iwlp,iP,i]
                 
                 # update initial conidtion
                 x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
                 
-                # update couple's utility
-                util_C[iwlp,iP,i] = -res.fun
-                
+                # get the numerical derivative(only needed for EGM...)
+                forward  = nelder_mead(uobj,res.x,bounds=bounds,args=(C_tot+ϵ,power,1.0-wlp,*pars)).fun
+                backward = nelder_mead(uobj,res.x,bounds=bounds,args=(C_tot-ϵ,power,1.0-wlp,*pars)).fun
+                grid_marg_u[iwlp,iP,i] = (forward - backward)/(2*ϵ)
                
-                
+            #Create grid of inverse marginal utility (only needed for EGM)
+            grid_marg_u_for_inv[iwlp,iP,:]=np.flip(par.grid_marg_u[iwlp,iP,:])    
+  
             
-    if par.EGM:#do this only if you want to use EGM method
-        for iwlp,wlp in enumerate(par.grid_wlp):
-            for iP,power in enumerate(par.grid_power):
-                for i,C_tot in enumerate(par.grid_Ctot):
-    
-                    par.grid_util[iwlp,iP,i]=usr.util_C(sol.pre_Ctot_Cw_priv[iwlp,iP,i],sol.pre_Ctot_Cm_priv[iwlp,iP,i],sol.pre_Ctot_C_pub[iwlp,iP,i],\
-                                          power,*pars,ishom=1.0-wlp)
-                    if i>0:
-                        par.grid_marg_u[iwlp,iP,i-1] =(util_C[iwlp,iP,i]-util_C[iwlp,iP,i-1])/(C_tot-par.grid_Ctot[i-1])# marg_util_C(C_tot,power,wlp,sol,par,step=1.0e-3)#
-                        
-                        if (i==par.num_Ctot-1): par.grid_marg_u[iwlp,iP,i]=par.grid_marg_u[iwlp,iP,i-1]
                 
-                #Create grid of inverse marginal utility
-                par.grid_marg_u_for_inv[iwlp,iP,:]=np.flip(par.grid_marg_u[iwlp,iP,:])
-                
-                
-                #Coefficients of the cubic spline
-                #grid=( (par.grid_marg_u_for_inv[iwlp,iP,0],par.grid_marg_u_for_inv[iwlp,iP,-1],par.num_Ctot),)
-                #par.coeffs_marg_util[iwlp,iP,:] = filter_cubic(grid, np.flip(par.grid_Ctot))
-                #eval(grid,par.coeffs_marg_util[iwlp,iP,:],1.0)
-               
-                                    
-    
-
 
 @njit(parallel=True)
 def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp,remain_Vd,par,sol,t):
@@ -911,8 +870,7 @@ def solve_remain_couple_egm(par,sol,t):
                     n_remain_Vw[iz,iL,:,iP] = usr.util(n_remain_Cw_priv,n_remain_C_pub,woman,*pars2,love,couple,1.0-par.grid_wlp[0])+par.β*n_Ew                        
                     n_remain_Vm[iz,iL,:,iP] = usr.util(n_remain_Cm_priv,n_remain_C_pub,man  ,*pars2,love,couple,1.0-par.grid_wlp[0])+par.β*n_Em
                     n_v_couple = power*n_remain_Vw[iz,iL,:,iP]+(1.0-power)*n_remain_Vm[iz,iL,:,iP]
-                 
-                    
+                                  
                     # get the probabilit of working, baed on couple utility choices
                     c=np.maximum(p_v_couple.max(),n_v_couple.max())/par.σ
                     v_couple=par.σ*(c+np.log(np.exp(p_v_couple/par.σ-c)+np.exp(n_v_couple/par.σ-c)))
@@ -1010,8 +968,6 @@ def solve_remain_couple(par,sol,t):
                         Δp=p_remain_Vw[idx]-p_remain_Vm[idx];Δn=n_remain_Vw[idx]-n_remain_Vm[idx]
                         remain_Vw[idx]=v_couple+(1.0-par.grid_power[iP])*(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
                         remain_Vm[idx]=v_couple+(-par.grid_power[iP])   *(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
-
-                        
 
  
     # return objects 
