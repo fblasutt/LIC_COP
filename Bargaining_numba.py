@@ -4,7 +4,7 @@ from consav.grids import nonlinspace
 from consav import linear_interp, linear_interp_1d,quadrature
 from numba import njit,prange,config
 import UserFunctions_numba as usr
-import vfi as vfi
+#import vfi as vfi
 from quantecon.optimize.nelder_mead import nelder_mead
 
 # set gender indication as globals
@@ -33,7 +33,6 @@ class HouseholdModelClass(EconModelClass):
         self.cpp_filename = 'cppfuncs/solve.cpp'
         self.cpp_options = {'compiler':'vs'}
         
-        self.not_floats = ['EGM','T','Tr','num_power','num_love','num_shock_love','num_zw','num_zm','num_Ctot','seed','simT','simN']
         
     def setup(self):
         par = self.par
@@ -391,17 +390,16 @@ def solve_single(sol,par,t):
     sol.Cw_priv_single[t,:,:]=cwpr.copy();sol.Cm_priv_single[t,:,:]=cmpr.copy()
     sol.Cw_pub_single[t,:,:]=cwpu.copy();sol.Cm_pub_single[t,:,:]=cmpu.copy()
 
-#@njit
 def solve_couple(sol,par,t):
  
     #Solve the couples's problem for current pareto weight
     #
     
-    if par.EGM: # EGM solution
-        remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp,remain_Vd=solve_remain_couple_egm(par,sol,t)
-    else: # slower but safe version
-        remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp=vfi.solve_remain_couple(par,sol,t)
-        remain_Vd=np.ones(remain_Vw.shape)
+    #if par.EGM: # EGM solution
+    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp,remain_Vd=solve_remain_couple_egm(par,sol,t)
+    #else: # slower but safe version
+    #    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp=vfi.solve_remain_couple(par,sol,t)
+    #    remain_Vd=np.ones(remain_Vw.shape)
         
     #Check participation constrints and eventually update policy function and pareto weights
     check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp,remain_Vd,par,sol,t)
@@ -411,11 +409,10 @@ def solve_couple(sol,par,t):
 def intraperiod_allocation_single(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
     
     args=(C_tot,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
-    def obj_s(x,Ctot,pgender,pρ,pϕ1,pϕ2,pα1,pα2,pθ,pλ,ptb):#=-utility of consuming x
-        return -usr.util(x,Ctot-x,pgender,pρ,pϕ1,pϕ2,pα1,pα2,pθ,pλ,ptb)
+
     
     #find private and public expenditure to max util
-    C_priv = usr.optimizer(obj_s,1.0e-6, C_tot - 1.0e-6,args=args) 
+    C_priv = usr.optimizer(usr.obj_s,1.0e-6, C_tot - 1.0e-6,args=args) 
     
     C_pub = C_tot - C_priv
     return C_priv,C_pub
@@ -455,10 +452,6 @@ def solve_intraperiod_couple(sol,par):
     bounds = np.array([[0.0,1.0],[0.0,1.0]]) # minimization bounds
     ϵ = par.grid_Ctot[0]/2.0 # to compute numerical deratives
       
-    def uobj(x,ct,pw,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
-        pubc=ct*(1.0-np.sum(x))
-        return (pw*usr.util(x[0]*ct,pubc,woman,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True) +\
-          (1.0-pw)*usr.util(x[1]*ct,pubc,man,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True))
     
     for iP in prange(par.num_power):
         
@@ -471,7 +464,7 @@ def solve_intraperiod_couple(sol,par):
                 power=par.grid_power[iP]
             
                 # estimate
-                res = nelder_mead(uobj,x0,bounds=bounds,args=(C_tot,power,1.0-wlp,*pars))
+                res = nelder_mead(usr.couple_util,x0,bounds=bounds,args=(C_tot,power,1.0-wlp,*pars))
 
                 # unpack
                 Cw_priv[iwlp,iP,i]= res.x[0]*C_tot
@@ -482,8 +475,8 @@ def solve_intraperiod_couple(sol,par):
                 x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
                 
                 # get the numerical derivative(only needed for EGM...)
-                forward  = nelder_mead(uobj,res.x,bounds=bounds,args=(C_tot+ϵ,power,1.0-wlp,*pars)).fun
-                backward = nelder_mead(uobj,res.x,bounds=bounds,args=(C_tot-ϵ,power,1.0-wlp,*pars)).fun
+                forward  = nelder_mead(usr.couple_util,res.x,bounds=bounds,args=(C_tot+ϵ,power,1.0-wlp,*pars)).fun
+                backward = nelder_mead(usr.couple_util,res.x,bounds=bounds,args=(C_tot-ϵ,power,1.0-wlp,*pars)).fun
                 grid_marg_u[iwlp,iP,i] = (forward - backward)/(2*ϵ)
                
             #Create grid of inverse marginal utility (only needed for EGM)

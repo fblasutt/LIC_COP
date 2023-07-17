@@ -5,7 +5,7 @@ import numpy as np
 
 from numba import config 
 config.DISABLE_JIT = False
-
+cache=True
 # set gender indication as globals
 woman = 1
 man = 2
@@ -13,17 +13,17 @@ man = 2
 ############################
 # User-specified functions #
 ############################
-@njit
+@njit(cache=cache)
 def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
     home_time=(2*tb+ishom*(1-tb)) if couple else tb
     return (θ*x**λ+(1.0-θ)*home_time**λ)**(1.0/λ)
 
-@njit
+@njit(cache=cache)
 def util(c_priv,c_pub,gender,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
     return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+ love
 
-@njit
+@njit(cache=cache)
 def util_C(Cw_priv,Cm_priv,C_pub,power,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love,ishom=0.0):
     
     Uw = util(Cw_priv,C_pub,woman,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=love,couple=1.0,ishom=ishom)
@@ -31,18 +31,27 @@ def util_C(Cw_priv,Cm_priv,C_pub,power,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love,ishom=0.
     
     return power*Uw + (1-0-power)*Um
 
-@njit
+@njit(cache=cache)
 def resources_couple(A,inc_w,inc_m,R):
     # resources of the couple
     return R*A + inc_w + inc_m
 
-@njit
+@njit(cache=cache)
 def resources_single(A,gender,inc_w,inc_m,R):
     # resources of single individual of gender "gender"
     income = inc_m if gender ==man else inc_w
     return (R*A + income)*0.00000000000001
 
+@njit(cache=cache)
+def couple_util(x,ct,pw,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
+    pubc=ct*(1.0-np.sum(x))
+    return (pw*util(x[0]*ct,pubc,woman,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True) +\
+      (1.0-pw)*util(x[1]*ct,pubc,man,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True))
 
+        
+@njit(cache=cache)    
+def obj_s(x,Ctot,pgender,pρ,pϕ1,pϕ2,pα1,pα2,pθ,pλ,ptb):#=-utility of consuming x
+    return -util(x,Ctot-x,pgender,pρ,pϕ1,pϕ2,pα1,pα2,pθ,pλ,ptb)
 
 
 def labor_income(t0,t1,t2,T,Tr,sigma_persistent,sigma_init,npts):
