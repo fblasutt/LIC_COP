@@ -180,7 +180,7 @@ class HouseholdModelClass(EconModelClass):
         sim.init_A = par.grid_A[0] + np.zeros(par.simN)
         sim.init_Aw = par.div_A_share * sim.init_A #np.zeros(par.simN)
         sim.init_Am = (1.0 - par.div_A_share) * sim.init_A #np.zeros(par.simN)
-        sim.init_couple = np.ones(par.simN,dtype=np.bool)
+        sim.init_couple = np.ones(par.simN,dtype=np.bool_)
         sim.init_power_idx = par.num_power//2 * np.ones(par.simN,dtype=np.int_)
         sim.init_love = np.zeros(par.simN)
         

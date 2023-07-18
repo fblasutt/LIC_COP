@@ -40,7 +40,7 @@ def resources_couple(A,inc_w,inc_m,R):
 def resources_single(A,gender,inc_w,inc_m,R):
     # resources of single individual of gender "gender"
     income = inc_m if gender ==man else inc_w
-    return (R*A + income)*0.00000000000001
+    return (R*A + income)#*0.00000000000001
 
 @njit(cache=cache)
 def couple_util(x,ct,pw,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize

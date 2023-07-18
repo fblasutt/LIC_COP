@@ -46,7 +46,7 @@ class HouseholdModelClass(EconModelClass):
         par.div_A_share = 0.5 # divorce share of wealth to wife
 
         # Utility: CES aggregator or additively linear
-        par.ρ = 1.5        # CRRA      
+        par.ρ = 2.0#        # CRRA      
         par.α1 = 0.55
         par.α2 = 0.45
         par.ϕ1 = 0.2
@@ -114,45 +114,25 @@ class HouseholdModelClass(EconModelClass):
         shape_singlem = (par.T,par.num_zm,par.num_A)
         sol.Vw_single = np.nan + np.ones(shape_singlew)
         sol.Vm_single = np.nan + np.ones(shape_singlem)
-        sol.Cw_priv_single = np.nan + np.ones(shape_singlew)
-        sol.Cm_priv_single = np.nan + np.ones(shape_singlem)
-        sol.Cw_pub_single = np.nan + np.ones(shape_singlew)
+        sol.marg_V_single =  np.ones(shape_singlem)
         sol.Cm_pub_single = np.nan + np.ones(shape_singlem)
         sol.Cw_tot_single = np.nan + np.ones(shape_singlew)
         sol.Cm_tot_single = np.nan + np.ones(shape_singlem)
 
-        sol.Vw_trans_single = np.nan + np.ones(shape_singlew)
-        sol.Vm_trans_single = np.nan + np.ones(shape_singlem)
-        sol.Cw_priv_trans_single = np.nan + np.ones(shape_singlew)
-        sol.Cm_priv_trans_single = np.nan + np.ones(shape_singlem)
-        sol.Cw_pub_trans_single = np.nan + np.ones(shape_singlew)
-        sol.Cm_pub_trans_single = np.nan + np.ones(shape_singlem)
-        sol.Cw_tot_trans_single = np.nan + np.ones(shape_singlew)
-        sol.Cm_tot_trans_single = np.nan + np.ones(shape_singlem)
 
         # couples
         shape_couple = (par.T,par.num_z,par.num_power,par.num_love,par.num_A)
         sol.Vw_couple = np.nan + np.ones(shape_couple)
         sol.Vm_couple = np.nan + np.ones(shape_couple)
-        sol.p_Vw_couple = np.nan + np.ones(shape_couple)
-        sol.p_Vm_couple = np.nan + np.ones(shape_couple)
-        sol.n_Vw_couple = np.nan + np.ones(shape_couple)
-        sol.n_Vm_couple = np.nan + np.ones(shape_couple)
-        
-        sol.p_C_tot_couple = np.nan + np.ones(shape_couple)
-        sol.n_C_tot_couple = np.nan + np.ones(shape_couple)
 
         sol.Vw_remain_couple = np.nan + np.ones(shape_couple)
         sol.Vm_remain_couple = np.nan + np.ones(shape_couple)
         sol.p_Vw_remain_couple = np.nan + np.ones(shape_couple)
         sol.p_Vm_remain_couple = np.nan + np.ones(shape_couple)
         sol.n_Vw_remain_couple = np.nan + np.ones(shape_couple)
-        sol.n_Vm_remain_couple = np.nan + np.ones(shape_couple)
-        
+        sol.n_Vm_remain_couple = np.nan + np.ones(shape_couple)      
         sol.p_C_tot_remain_couple = np.nan + np.ones(shape_couple)
         sol.n_C_tot_remain_couple = np.nan + np.ones(shape_couple)
-
-        sol.WLP = np.ones(shape_couple)
         sol.remain_WLP = np.ones(shape_couple)
         
         sol.power_idx = np.zeros(shape_couple,dtype=np.int_)
@@ -166,11 +146,6 @@ class HouseholdModelClass(EconModelClass):
         # EGM
         sol.marg_V_couple = np.zeros(shape_couple)
         sol.marg_V_remain_couple = np.zeros(shape_couple)
-
-        shape_egm = (par.num_wlp,par.num_power,par.num_love,par.num_A_pd)
-        sol.EmargU_pd = np.zeros(shape_egm)
-        sol.C_tot_pd = np.zeros(shape_egm)
-        sol.M_pd = np.zeros(shape_egm)
 
         # pre-compute optimal consumption allocation
         shape_pre = (par.num_wlp,par.num_power,par.num_Ctot)
@@ -211,7 +186,7 @@ class HouseholdModelClass(EconModelClass):
         sim.init_A = par.grid_A[0] + np.zeros(par.simN)
         sim.init_Aw = par.div_A_share * sim.init_A #np.zeros(par.simN)
         sim.init_Am = (1.0 - par.div_A_share) * sim.init_A #np.zeros(par.simN)
-        sim.init_couple = np.ones(par.simN,dtype=bool)
+        sim.init_couple = np.zeros(par.simN,dtype=bool)
         sim.init_power_idx = par.num_power//2 * np.ones(par.simN,dtype=np.int_)
         sim.init_love = np.zeros(par.simN)
         sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2
@@ -275,8 +250,7 @@ class HouseholdModelClass(EconModelClass):
         with jit(self) as model:#This allows passing sol and par to jiit functions  
             
             #Import parameters and arrays for solution
-            par = model.par
-            sol = model.sol
+            par = model.par; sol = model.sol
             
             # precompute the optimal intra-temporal consumption allocation for couples given total consumpotion
             solve_intraperiod_couple(sol,par)
@@ -286,18 +260,13 @@ class HouseholdModelClass(EconModelClass):
                 solve_single(sol,par,t)
                 solve_couple(sol,par,t)
     
-            # store results
-            store(sol)
-            
                      
     def simulate(self):
         
         with jit(self) as model:    
             
             #Import parameter, policy functions and simulations arrays
-            par = model.par
-            sol = model.sol
-            sim = model.sim
+            par = model.par; sol = model.sol; sim = model.sim
             
             #Call routing performing the simulation
             simulate_lifecycle(sim,sol,par)
@@ -387,8 +356,7 @@ def solve_single(sol,par,t):
                 vm[iz,iA] = value_of_choice_single(Cm,*argsm)  
                 
     sol.Vw_single[t,:,:]=vw.copy();sol.Vm_single[t,:,:]=vm.copy()
-    sol.Cw_priv_single[t,:,:]=cwpr.copy();sol.Cm_priv_single[t,:,:]=cmpr.copy()
-    sol.Cw_pub_single[t,:,:]=cwpu.copy();sol.Cm_pub_single[t,:,:]=cmpu.copy()
+    sol.Cw_tot_single[t,:,:] = cwpr.copy() + cwpu.copy(); sol.Cm_tot_single[t,:,:] = cmpr.copy() + cmpu.copy()
 
 def solve_couple(sol,par,t):
  
@@ -499,10 +467,10 @@ def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,
                 idx_single_w = (t,iz//par.num_zm,iA);idx_single_m = (t,iz%par.num_zw,iA);idd=(iz,iL,iA)
      
                 
-                list_couple = (sol.Vw_couple, sol.Vm_couple, sol.p_Vw_couple, sol.p_Vm_couple, sol.n_Vw_couple, sol.n_Vm_couple,sol.p_C_tot_couple,sol.n_C_tot_couple, sol.WLP,sol.marg_V_couple)#list_start_as_couple
-                list_raw    = (remain_Vw[idd],remain_Vm[idd],p_remain_Vw[idd],p_remain_Vm[idd],n_remain_Vw[idd],n_remain_Vm[idd],p_C_tot[idd],    n_C_tot[idd],remain_wlp[idd],remain_Vd[idd])#list_remain_couple
-                list_single = (sol.Vw_single,sol.Vm_single,sol.Cw_priv_single,sol.Cm_priv_single,sol.Cw_pub_single) # list_trans_to_single: last input here not important in case of divorce
-                list_single_w = (True,False,True,False,True) # list that say whether list_single[i] is about w (as oppoesd to m)
+                list_couple = (sol.Vw_couple, sol.Vm_couple,sol.marg_V_couple)#list_start_as_couple
+                list_raw    = (remain_Vw[idd],remain_Vm[idd],remain_Vd[idd])#list_remain_couple
+                list_single = (sol.Vw_single,sol.Vm_single,sol.marg_V_single) # list_trans_to_single: last input here not important in case of divorce
+                list_single_w = (True,False,True) # list that say whether list_single[i] is about w (as oppoesd to m)
                 
                 Sw = remain_Vw[iz,iL,iA,:] - sol.Vw_single[idx_single_w] 
                 Sm = remain_Vm[iz,iL,iA,:] - sol.Vm_single[idx_single_m] 
@@ -849,25 +817,8 @@ def solve_remain_couple_egm(par,sol,t):
 
 
 
-#@njit
-def store(sol):
-    
-    # total consumption
-    sol.Cw_tot_single[::] = sol.Cw_priv_single[::] + sol.Cw_pub_single[::]
-    sol.Cm_tot_single[::] = sol.Cm_priv_single[::] + sol.Cm_pub_single[::]
-
-    # value of transitioning to singlehood. Done here because absorbing . it is the same as entering period as single.
-    sol.Vw_trans_single[::] = sol.Vw_single[::].copy()
-    sol.Vm_trans_single[::] = sol.Vm_single[::].copy()
-    sol.Cw_priv_trans_single[::] = sol.Cw_priv_single[::].copy()
-    sol.Cm_priv_trans_single[::] = sol.Cm_priv_single[::].copy()
-    sol.Cw_pub_trans_single[::] = sol.Cw_pub_single[::].copy()
-    sol.Cm_pub_trans_single[::] = sol.Cm_pub_single[::].copy()
-    sol.Cw_tot_trans_single[::] = sol.Cw_tot_single[::].copy()
-    sol.Cm_tot_trans_single[::] = sol.Cm_tot_single[::].copy()
-
 @njit(parallel=parallel)
-def simulate_lifecycle(sim,sol,par):     
+def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continuous...
     
 
     # unpacking some values to help numba optimize
@@ -876,9 +827,6 @@ def simulate_lifecycle(sim,sol,par):
     couple=sim.couple;power_idx=sim.power_idx;power=sim.power;love=sim.love;draw_love=sim.draw_love;iz=sim.iz;
     wlp=sim.WLP;incw=sim.incw;incm=sim.incm
     
-    # prepare income shocks
-    #inc_shocks_w = usr.mc_simulate
-    #inc_shocks_m =
     
     for i in prange(par.simN):
         for t in range(par.simT):
@@ -914,8 +862,8 @@ def simulate_lifecycle(sim,sol,par):
             if couple_lag:                   
 
                 # value of transitioning into singlehood
-                Vw_single = linear_interp.interp_1d(par.grid_Aw,sol.Vw_trans_single[t,iz_w],Aw_lag)
-                Vm_single = linear_interp.interp_1d(par.grid_Am,sol.Vm_trans_single[t,iz_m],Am_lag)
+                Vw_single = linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,iz_w],Aw_lag)
+                Vm_single = linear_interp.interp_1d(par.grid_Am,sol.Vm_single[t,iz_m],Am_lag)
 
                 idx = (t,iz[i,t],power_idx_lag)
                 Vw_couple_i = linear_interp.interp_2d(par.grid_love,par.grid_A,sol.Vw_remain_couple[idx],love[i,t],A_lag)
@@ -952,15 +900,13 @@ def simulate_lifecycle(sim,sol,par):
             if couple[i,t]:
                 
                 
-                
-                
                 # first decide about labor participation
-                pr= sol.WLP[t,iz[i,t],power_idx[i,t]] #probability of participation
+                pr= sol.remain_WLP[t,iz[i,t],power_idx[i,t]] #probability of participation
                 part_i=linear_interp.interp_2d(par.grid_love,par.grid_A,pr,love[i,t],A_lag)
                 wlp[i,t]=(part_i>sim.shock_taste[i,t])
                 
-                # optimal consumption allocation if couple
-                sol_C_tot = sol.p_C_tot_couple[t,iz[i,t],power_idx[i,t]] if wlp[i,t]==1 else sol.n_C_tot_couple[t,iz[i,t],power_idx[i,t]] 
+                # optimal consumption allocation if couple (note use of the updated index)
+                sol_C_tot = sol.p_C_tot_remain_couple[t,iz[i,t],power_idx[i,t]] if wlp[i,t]==1 else sol.n_C_tot_remain_couple[t,iz[i,t],power_idx[i,t]] 
                 C_tot = linear_interp.interp_2d(par.grid_love,par.grid_A,sol_C_tot,love[i,t],A_lag)
                 args=(C_tot,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[wlp[i,t],power_idx[i,t]],sol.pre_Ctot_Cm_priv[wlp[i,t],power_idx[i,t]])
                 Cw_priv[i,t], Cm_priv[i,t], C_pub = intraperiod_allocation(*args)
@@ -973,7 +919,7 @@ def simulate_lifecycle(sim,sol,par):
                 M_resources = usr.resources_couple(A_lag,*pres) 
                 A[i,t] = M_resources - Cw_priv[i,t] - Cm_priv[i,t] - Cw_pub[i,t]
 
-                # in case of divorce
+                # in case of divorce 
                 Aw[i,t] = par.div_A_share * A[i,t]
                 Am[i,t] = (1.0-par.div_A_share) * A[i,t]
 
@@ -987,11 +933,10 @@ def simulate_lifecycle(sim,sol,par):
                 # pick relevant solution for single, depending on whether just became single
                 idx_sol_single_w = (t,iz_w)
                 idx_sol_single_m = (t,iz_m)
-                sol_single_w = sol.Cw_tot_trans_single[idx_sol_single_w]
-                sol_single_m = sol.Cm_tot_trans_single[idx_sol_single_m]
-                if (power_idx_lag<0):
-                    sol_single_w = sol.Cw_tot_single[idx_sol_single_w]
-                    sol_single_m = sol.Cm_tot_single[idx_sol_single_m]
+
+                
+                sol_single_w = sol.Cw_tot_single[idx_sol_single_w]
+                sol_single_m = sol.Cm_tot_single[idx_sol_single_m]
 
                 # optimal consumption allocations
                 Cw_tot = linear_interp.interp_1d(par.grid_Aw,sol_single_w,Aw_lag)
