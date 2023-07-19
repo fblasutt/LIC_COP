@@ -74,7 +74,7 @@ fig, ax = plt.subplots(figsize=(11, 8))   #Initialize figure and size
 ax.plot(base, modelj.sim.incw.mean(axis=0)+modelj.sim.incm.mean(axis=0), label="Mean income path") 
 ax.plot(base, modelj.sim.C_tot.mean(axis=0), label="Mean consumption path")
 ax.plot(base, agg_cons.mean(axis=0), label="Mean aggregage consumption path")
-ax.plot(base, modelj.sim.A.mean(axis=0), label="Mean assets path") 
+ax.plot(base, modelj.sim.Aw.mean(axis=0)+modelj.sim.Am.mean(axis=0), label="Mean assets path") 
 ax.grid()
 ax.set_xlabel('t')                        #Label of x axis
 ax.set_ylabel('a, y, c')                  #Label of y axis

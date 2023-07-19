@@ -9,7 +9,81 @@ woman = 1
 man = 2
  
 config.DISABLE_JIT = False
+parallel=False
 
+###############################################################################
+# SINGLE'S FUNCTIONS
+###############################################################################
+@njit
+def integrate_single(sol,par,t):
+    Ew,Ewd=np.ones((2,par.num_zw,par.num_A))
+    Em,Emd=np.ones((2,par.num_zm,par.num_A)) 
+    
+    for iA in range(par.num_A):Ew[:,iA]  = sol.Vw_single[t+1,:,iA].flatten() @ par.Π_zw[t] 
+    for iA in range(par.num_A):Em[:,iA]  = sol.Vm_single[t+1,:,iA].flatten() @ par.Π_zm[t]
+    for iA in range(par.num_A):Ewd[:,iA] = sol.Vw_marg_single[t+1,:,iA].flatten() @ par.Π_zw[t] 
+    for iA in range(par.num_A):Emd[:,iA] = sol.Vm_marg_single[t+1,:,iA].flatten() @ par.Π_zm[t]
+    
+    return Ew,Ewd,Em,Emd
+
+@njit(parallel=parallel)
+def solve_single(sol,par,t):
+
+    #Integrate first to get continuation value (0 if terminal period)
+    Ew, Em = integrate_single(sol,par,t) if t<par.T-1 else (np.zeros((par.num_zw,par.num_A)),np.zeros((par.num_zm,par.num_A)))
+     
+    # parameters used for optimization: partial unpacking improves speed
+    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
+            
+    #Pre-define outcomes (if update .sol directly, parallelization go crazy)
+    vw,cw=np.ones((2,par.num_zw,par.num_A));vm,cm=np.ones((2,par.num_zm,par.num_A))
+    
+    
+    for iA in prange(par.num_A):
+        
+        # Women
+        for iz in range(par.num_zw):
+
+            Mw = par.R*par.grid_Aw[iA] + par.grid_zw[t,iz] #resources
+
+            # search over optimal total consumption, , and store (OPPOSITE) of value
+            argsw=(Mw,Ew[iz,:],*pars,par.β,par.grid_Aw)             
+            cw[iz,iA], vw[iz,iA] = usr.optimizer(lambda *argsw:-value_of_choice_single(*argsw),1.0e-8, Mw-1.0e-8,args=argsw)
+              
+        # Men
+        for iz in range(par.num_zm):
+            
+            Mm = par.R*par.grid_Am[iA] + par.grid_zm[t,iz] # resources
+    
+            # search over optimal total consumption, and store (OPPOSITE) of value
+            argsm=(Mm,Em[iz,:],*pars,par.β,par.grid_Am)                
+            cm[iz,iA], vm[iz,iA] = usr.optimizer(lambda *argsm:-value_of_choice_single(*argsm),1.0e-8, Mm-1.0e-8,args=argsm)            
+                
+    sol.Vw_single[t,:,:]=-vw.copy();sol.Vm_single[t,:,:]=-vm.copy()
+    sol.Cw_tot_single[t,:,:] = cw.copy() ; sol.Cm_tot_single[t,:,:] = cm.copy()
+    
+    
+@njit
+def value_of_choice_single(C_tot,M,EV_next,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,β,grid_A):
+   
+    # flow-utility
+    C_priv, C_pub =  usr.intraperiod_allocation_single(C_tot,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
+    Util = usr.util(C_priv,C_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
+    
+    # continuation value
+    A = M - C_tot
+    
+    #EVnext = linear_interp.interp_1d(grid_A,EV_next,A)
+    EVnext = linear_interp.interp_1d(grid_A,(-EV_next)**(1.0/(1.0-ρ)),A)**(1.0-ρ)/(1.0-ρ)
+    
+    # return discounted sum
+    return Util + β*EVnext
+
+
+
+###############################################################################
+# COUPLE'S FUNCTIONS
+###############################################################################
 
 @njit
 def intraperiod_allocation(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm_priv):
@@ -22,7 +96,7 @@ def intraperiod_allocation(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm
 
     return Cw_priv, Cm_priv, C_pub
 
-@njit(parallel=True) 
+@njit(parallel=parallel) 
 def solve_remain_couple(par,sol,t): 
  
     #Integration    
@@ -32,7 +106,7 @@ def solve_remain_couple(par,sol,t):
     remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp = np.ones((9,par.num_z,par.num_love,par.num_A,par.num_power)) 
 
     #parameters: useful to unpack this to improve speed 
-    couple=1.0;ishome=0.0;k=par.interp
+    couple=1.0;ishome=0.0#;k=par.interp
     pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot, par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,couple, 
            par.T,par.grid_A,par.grid_weight_love,par.β,par.num_shock_love,par.max_A,par.num_A) 
      
@@ -61,8 +135,8 @@ def solve_remain_couple(par,sol,t):
                         # current utility from consumption allocation 
                         remain_Cw_priv, remain_Cm_priv, remain_C_pub =\
                             intraperiod_allocation(p_C_tot[idx],par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[1,iP],sol.pre_Ctot_Cm_priv[1,iP]) 
-                        remain_Vw[idx] = usr.util(remain_Cw_priv,remain_C_pub,woman,*pars2,par.grid_love[iL],couple,ishome) 
-                        remain_Vm[idx] = usr.util(remain_Cm_priv,remain_C_pub,man  ,*pars2,par.grid_love[iL],couple,ishome) 
+                        remain_Vw[idx] = usr.util(remain_Cw_priv,remain_C_pub,*pars2,par.grid_love[iL],couple,ishome) 
+                        remain_Vm[idx] = usr.util(remain_Cm_priv,remain_C_pub,*pars2,par.grid_love[iL],couple,ishome) 
                         remain_wlp[idx] = 1.0  
                     else:#periods before the last 
                                  
@@ -85,8 +159,8 @@ def solve_remain_couple(par,sol,t):
                         def obj(x,t,M_resources,ishom,*args):#function to minimize (= maximize value of choice) 
                             return - value_of_choice_couple(x,t,M_resources,*args,ishom)[0]  
                         
-                        p_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[1]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[1]),0.0,*p_args))
-                        n_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[0]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[0]),1.0,*n_args)) if t<par.Tr else 1e-6 
+                        p_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[1]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[1]),0.0,*p_args))[0]
+                        n_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[0]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[0]),1.0,*n_args))[0] if t<par.Tr else 1e-6 
      
                         # current utility from consumption allocation 
                         p_v_couple, p_remain_Vw[idx], p_remain_Vm[idx] = value_of_choice_couple(p_C_tot[idx],t,M_resources(par.grid_wlp[1]),*p_args,0.0)
@@ -153,8 +227,8 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
       
     # current utility from consumption allocation     
     Cw_priv, Cm_priv, C_pub = intraperiod_allocation(Ctot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priviP,pre_Ctot_Cm_priviP)  
-    Vw = usr.util(Cw_priv,C_pub,woman,*pars)  
-    Vm = usr.util(Cm_priv,C_pub,man  ,*pars)  
+    Vw = usr.util(Cw_priv,C_pub,*pars)  
+    Vm = usr.util(Cm_priv,C_pub,*pars)  
  
     point=np.array([M_resources - Ctot]) 
     grid=((0.0,max_A,num_A),)
