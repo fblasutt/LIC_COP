@@ -1,7 +1,7 @@
 from numba import njit,prange
 from numba_stats import norm
 from scipy.integrate import quad
-import numpy as np
+import numpy as np#import autograd.numpy as np#
 
 from numba import config 
 config.DISABLE_JIT = False
@@ -16,7 +16,7 @@ man = 2
 @njit(cache=cache)
 def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
     home_time=(2*tb+ishom*(1-tb)) if couple else tb
-    return (θ*x**λ+(1.0-θ)*home_time**λ)**(1.0/λ)
+    return (θ*x**λ+(1.0-θ)*home_time**λ)**(1.0/λ) 
 
 @njit(cache=cache)
 def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):

@@ -16,15 +16,12 @@ parallel=False
 ###############################################################################
 @njit
 def integrate_single(sol,par,t):
-    Ew,Ewd=np.ones((2,par.num_zw,par.num_A))
-    Em,Emd=np.ones((2,par.num_zm,par.num_A)) 
+    Ew=np.ones((par.num_zw,par.num_A));Em=np.ones((par.num_zm,par.num_A)) 
     
     for iA in range(par.num_A):Ew[:,iA]  = sol.Vw_single[t+1,:,iA].flatten() @ par.Π_zw[t] 
     for iA in range(par.num_A):Em[:,iA]  = sol.Vm_single[t+1,:,iA].flatten() @ par.Π_zm[t]
-    for iA in range(par.num_A):Ewd[:,iA] = sol.Vw_marg_single[t+1,:,iA].flatten() @ par.Π_zw[t] 
-    for iA in range(par.num_A):Emd[:,iA] = sol.Vm_marg_single[t+1,:,iA].flatten() @ par.Π_zm[t]
-    
-    return Ew,Ewd,Em,Emd
+
+    return Ew,Em
 
 @njit(parallel=parallel)
 def solve_single(sol,par,t):
@@ -44,7 +41,7 @@ def solve_single(sol,par,t):
         # Women
         for iz in range(par.num_zw):
 
-            Mw = par.R*par.grid_Aw[iA] + par.grid_zw[t,iz] #resources
+            Mw = (par.R*par.grid_Aw[iA] + par.grid_zw[t,iz])*0.0000001 #resources
 
             # search over optimal total consumption, , and store (OPPOSITE) of value
             argsw=(Mw,Ew[iz,:],*pars,par.β,par.grid_Aw)             
@@ -53,7 +50,7 @@ def solve_single(sol,par,t):
         # Men
         for iz in range(par.num_zm):
             
-            Mm = par.R*par.grid_Am[iA] + par.grid_zm[t,iz] # resources
+            Mm = (par.R*par.grid_Am[iA] + par.grid_zm[t,iz])*0.0000001 # resources
     
             # search over optimal total consumption, and store (OPPOSITE) of value
             argsm=(Mm,Em[iz,:],*pars,par.β,par.grid_Am)                
@@ -100,7 +97,7 @@ def intraperiod_allocation(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm
 def solve_remain_couple(par,sol,t): 
  
     #Integration    
-    if t<(par.T-1): EVw, EVm, _ = integrate(par,sol,t)  
+    if t<(par.T-1): EVw, EVm = integrate(par,sol,t)  
  
     # initialize 
     remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp = np.ones((9,par.num_z,par.num_love,par.num_A,par.num_power)) 
@@ -130,7 +127,7 @@ def solve_remain_couple(par,sol,t):
                     # continuation values 
                     if t==(par.T-1):#last period 
                   
-                        p_C_tot[idx] = usr.resources_couple(par.grid_A[iA],par.grid_zw[t,izm],par.grid_zw[t,izw],par.R) #No savings, it's the last period 
+                        p_C_tot[idx] = usr.resources_couple(par.grid_A[iA],par.grid_zw[t,izw],par.grid_zm[t,izm],par.R) #No savings, it's the last period 
                          
                         # current utility from consumption allocation 
                         remain_Cw_priv, remain_Cm_priv, remain_C_pub =\
@@ -145,7 +142,7 @@ def solve_remain_couple(par,sol,t):
                          
                         def M_resources(wlp):
                             incw=par.grid_zw[t,izw]*wlp #if t<=par.Tr else 0.0
-                            incm=par.grid_zm[t,izw]     #if t<=par.Tr else par.grid_zw[t,izw]+par.grid_zm[t,izw]
+                            incm=par.grid_zm[t,izm]     #if t<=par.Tr else par.grid_zw[t,izw]+par.grid_zm[t,izw]
                             
                             return usr.resources_couple(par.grid_A[iA],incw,incm,par.R) 
                         
@@ -178,14 +175,13 @@ def solve_remain_couple(par,sol,t):
 
  
     # return objects 
-    return remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp
-
+    return (remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp, np.ones(remain_Vw.shape), np.ones(remain_Vm.shape))
 
 @njit#this should be parallelized, but it's tricky... 
 def integrate(par,sol,t): 
      
-    EVw,EVm,pEVw,pEVm,pEVd,EVd= np.ones((6,par.num_z,par.num_love,par.num_power,par.num_A)) 
-    aw,am,ad=np.ones((3,par.num_shock_love)) 
+    EVw,EVm,pEVw,pEVm= np.ones((4,par.num_z,par.num_love,par.num_power,par.num_A)) 
+    aw,am=np.ones((2,par.num_shock_love)) 
     love_next_vec=np.ones((par.num_love,par.num_shock_love)) 
      
     for iL in range(par.num_love):love_next_vec[iL,:] = par.grid_love[iL] + par.grid_shock_love 
@@ -198,8 +194,7 @@ def integrate(par,sol,t):
                 #Integrate income shocks
                 pEVw[:,iL,iP,iA] = sol.Vw_couple[t+1,:,iP,iL,iA].flatten() @ par.Π[t] 
                 pEVm[:,iL,iP,iA] = sol.Vm_couple[t+1,:,iP,iL,iA].flatten() @ par.Π[t] 
-                pEVd[:,iL,iP,iA] = sol.marg_V_couple[t+1,:,iP,iL,iA].flatten() @ par.Π[t]
-   
+
     for iL in range(par.num_love): 
         for iP in range(par.num_power):     
             for iA in range(par.num_A): 
@@ -207,13 +202,11 @@ def integrate(par,sol,t):
                     #Integrate love shocks
                     linear_interp.interp_1d_vec(par.grid_love,pEVw[iz,:,iP,iA],love_next_vec[iL,:],aw) 
                     linear_interp.interp_1d_vec(par.grid_love,pEVm[iz,:,iP,iA],love_next_vec[iL,:],am)
-                    linear_interp.interp_1d_vec(par.grid_love,pEVd[iz,:,iP,iA],love_next_vec[iL,:],ad)
-                     
+
                     EVw[iz,iL,iP,iA]=aw @ par.grid_weight_love 
                     EVm[iz,iL,iP,iA]=am @ par.grid_weight_love 
-                    EVd[iz,iL,iP,iA]=ad @ par.grid_weight_love 
            
-    return EVw,EVm,par.R*par.β*EVd
+    return EVw,EVm
 
 
 
