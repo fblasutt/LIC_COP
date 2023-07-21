@@ -8,7 +8,7 @@ import UserFunctions_numba as usr
 woman = 1
 man = 2
  
-config.DISABLE_JIT = False
+config.DISABLE_JIT =True
 parallel=False
 
 ###############################################################################
@@ -103,13 +103,13 @@ def solve_remain_couple(par,sol,t):
     remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp = np.ones((9,par.num_z,par.num_love,par.num_A,par.num_power)) 
 
     #parameters: useful to unpack this to improve speed 
-    couple=1.0;ishome=0.0#;k=par.interp
+    couple=1.0;ishome=1.0#;k=par.interp
     pars1=(par.grid_love,par.num_Ctot,par.grid_Ctot, par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,couple, 
            par.T,par.grid_A,par.grid_weight_love,par.β,par.num_shock_love,par.max_A,par.num_A) 
      
     pars2=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb) 
      
-    pen=1.0 if t<par.Tr else 1e-6
+    #pen=1.0 if t<par.Tr else 1e-6
      
     for iL in prange(par.num_love): 
          
@@ -127,24 +127,21 @@ def solve_remain_couple(par,sol,t):
                     # continuation values 
                     if t==(par.T-1):#last period 
                   
-                        p_C_tot[idx] = usr.resources_couple(par.grid_A[iA],par.grid_zw[t,izw],par.grid_zm[t,izm],par.R) #No savings, it's the last period 
+                        n_C_tot[idx] = usr.resources_couple(t,par.Tr,par.grid_A[iA],par.grid_zw[t,izw],0.0,par.grid_zm[t,izm],par.R) #No savings, it's the last period 
                          
                         # current utility from consumption allocation 
                         remain_Cw_priv, remain_Cm_priv, remain_C_pub =\
-                            intraperiod_allocation(p_C_tot[idx],par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[1,iP],sol.pre_Ctot_Cm_priv[1,iP]) 
+                            intraperiod_allocation(n_C_tot[idx],par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[0,iP],sol.pre_Ctot_Cm_priv[0,iP]) 
                         remain_Vw[idx] = usr.util(remain_Cw_priv,remain_C_pub,*pars2,par.grid_love[iL],couple,ishome) 
                         remain_Vm[idx] = usr.util(remain_Cm_priv,remain_C_pub,*pars2,par.grid_love[iL],couple,ishome) 
-                        remain_wlp[idx] = 1.0  
+                        remain_wlp[idx] = 0.0  
                     else:#periods before the last 
                                  
                         coeffsW = prefilter(((0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:],k=3) 
                         coeffsM = prefilter(((0.0,par.max_A,par.num_A),), EVm[iz,iL,iP,:],k=3)
                          
                         def M_resources(wlp):
-                            incw=par.grid_zw[t,izw]*wlp #if t<=par.Tr else 0.0
-                            incm=par.grid_zm[t,izm]     #if t<=par.Tr else par.grid_zw[t,izw]+par.grid_zm[t,izw]
-                            
-                            return usr.resources_couple(par.grid_A[iA],incw,incm,par.R) 
+                            return usr.resources_couple(t,par.Tr,par.grid_A[iA],par.grid_zw[t,izw],wlp,par.grid_zm[t,izm],par.R) 
                         
                         #first find optimal total consumption 
                         p_args=(iL,par.grid_power[iP],EVw[iz,iL,iP,:],EVm[iz,iL,iP,:],coeffsW,coeffsM, 
@@ -157,7 +154,7 @@ def solve_remain_couple(par,sol,t):
                             return - value_of_choice_couple(x,t,M_resources,*args,ishom)[0]  
                         
                         p_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[1]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[1]),0.0,*p_args))[0]
-                        n_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[0]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[0]),1.0,*n_args))[0] if t<par.Tr else 1e-6 
+                        n_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[0]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[0]),1.0,*n_args))[0] #if t<par.Tr else 1e-6 
      
                         # current utility from consumption allocation 
                         p_v_couple, p_remain_Vw[idx], p_remain_Vm[idx] = value_of_choice_couple(p_C_tot[idx],t,M_resources(par.grid_wlp[1]),*p_args,0.0)
