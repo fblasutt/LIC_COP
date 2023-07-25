@@ -8,7 +8,7 @@ import UserFunctions_numba as usr
 woman = 1
 man = 2
  
-config.DISABLE_JIT =True
+config.DISABLE_JIT =False
 parallel=False
 
 ###############################################################################
