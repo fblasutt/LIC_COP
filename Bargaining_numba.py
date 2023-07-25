@@ -40,7 +40,7 @@ class HouseholdModelClass(EconModelClass):
         
         par.EGM = True # Want to use the EGM method to solve the model?
         
-        par.R = 1.01#3
+        par.R = 1.00#3
         par.β = 1.00#/par.R # Discount factor
         
         par.div_A_share = 0.5 # divorce share of wealth to wife
@@ -58,7 +58,7 @@ class HouseholdModelClass(EconModelClass):
         par.tb = 0.2 #time spend on public goods by singles
         
         #Taste shock
-        par.σ = 0.000000001 #taste shock applied to working/not working
+        par.σ = 0.0000005 #taste shock applied to working/not working
         
         ####################
         # state variables
@@ -240,7 +240,11 @@ class HouseholdModelClass(EconModelClass):
         par.grid_zw,par.Π_zw= usr.labor_income(par.t0w,par.t1w,par.t2w,par.T,par.Tr,par.σzw,par.σ0zw,par.num_zw)
         par.grid_zm,par.Π_zm= usr.labor_income(par.t0m,par.t1m,par.t2m,par.T,par.Tr,par.σzm,par.σ0zm,par.num_zm)
         par.Π=[np.kron(par.Π_zw[t],par.Π_zm[t]) for t in range(par.T-1)]
+        
+        for t in range(par.T):par.grid_zw[t][:]=0.3
+        for t in range(par.T):par.grid_zm[t][:]=0.4
         for t in range(par.Tr,par.T):par.grid_zw[t][:]=1e-8
+        for t in range(par.Tr,par.T):par.grid_zm[t][:]=0.1
         par.matw0=usr.rouw_nonst(2,par.σ0zw,0.0,par.num_zw)[1][0]
         par.matm0=usr.rouw_nonst(2,par.σ0zw,0.0,par.num_zw)[1][0]
         

@@ -34,15 +34,15 @@ class modelState(object):
                  T=20,            #Age at death
                  Tr=13,           #Age at retirement
                  β=1.00,           #Discount factor
-                 r=0.01,          #Interest rate
+                 r=0.00,          #Interest rate
                  amin=0.0,        #Lower bound of assets'grid
                  amax=6.0,       #Higher bound of assets'grid
                  Nag=10000,       #Number of agents to simulate
-                 σ=0.000000001,           #Taste shocks
+                 σ=0.0000005,           #Taste shocks
                  σ_z=0.01**0.5,  #Standard dev. of income shock (same for H, W)
                  ρ=0.95,          #Persistence of income shock
-                 ϵ=0.000000001,   #Avoid wrong participation because of float #
-                 ψ=1.1,           #Utility cost of female labor participation
+                 ϵ=0.0000005,   #Avoid wrong participation because of float #
+                 ψ=0.0,           #Utility cost of female labor participation
                  Nz=3,            #Gridpoints for persistent income shock
                  dcegm=True,      #Use DC-EGM method, otherwise egm only
                  diagnostic=True):#Check for non convexities
@@ -72,7 +72,7 @@ class modelState(object):
         
         #Adjus at retirement: H and W pensions  of value 0.45 each stored in...
         #yH: trick to avoid participation in labor market of W at retirement
-        yH[:,:],yW[:,:]=0.4,0.4#.045+.045,0.0
+        yH[:,:],yW[:,:]=0.4,0.3#.045+.045,0.0
         yH[Tr:,:],yW[Tr:,:]=0.1,0.#.045+.045,0.0
         
         

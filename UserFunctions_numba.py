@@ -21,7 +21,7 @@ def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
 @njit(cache=cache)
 def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
-    return np.log(c_priv)-1.1*(1.0-ishom)#((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)++ love 
+    return np.log(c_priv)#-1.1*(1.0-ishom)#((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)++ love 
 
 @njit(cache=cache)
 def resources_couple(t,Tr,A,inc_w,wlp,inc_m,R):   
@@ -93,7 +93,7 @@ def labor_income(t0,t1,t2,T,Tr,sigma_persistent,sigma_init,npts):
         for t in range(T-1):X[t][:]=0.0
         for t in range(T-1):Pi[t]=np.eye(npts)
         
-    for t in range(T):X[t][:]=0.4#np.exp(X[t]+t0+t1*t+t2*t**2)
+    for t in range(T):X[t][:]=np.exp(X[t]+t0+t1*t+t2*t**2)
     for t in range(Tr,T):X[t][:]=0.1
 
     return np.array(X), Pi
