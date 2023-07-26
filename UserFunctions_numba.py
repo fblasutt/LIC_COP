@@ -1,15 +1,14 @@
-from numba import njit,prange
+from numba import njit
 from numba_stats import norm
-from scipy.integrate import quad
 import numpy as np#import autograd.numpy as np#
-from consav import linear_interp, linear_interp_1d,quadrature
+from consav import linear_interp, linear_interp_1d
 from numba import config 
 from consav.grids import nonlinspace
-config.DISABLE_JIT = False
-cache=True
-# set gender indication as globals
-woman = 1
-man = 2
+import setup
+
+#general configuratiion and glabal variables  (common across files)
+config.DISABLE_JIT = setup.nojit;parallel=setup.parallel;cache=setup.cache
+woman=setup.woman;man=setup.man
 
 ############################
 # User-specified functions #
@@ -30,19 +29,14 @@ def resources_couple(t,Tr,A,inc_w,wlp,inc_m,R):
     if t>=Tr: return R*A + inc_w     + inc_m
     else:     return R*A + inc_w*wlp + inc_m
 
-@njit(cache=cache)
-def couple_util(x,ct,pw,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
-    pubc=ct*(1.0-np.sum(x))
-    return (pw*util(x[0]*ct,pubc,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True) +\
-      (1.0-pw)*util(x[1]*ct,pubc,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True))
-        
-@njit(cache=cache)
-def couple_util_ind(x,ct,pw,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
-    pubc=ct*(1.0-np.sum(x))
-    Vw=util(x[0]*ct,pubc,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True)
-    Vm=util(x[1]*ct,pubc,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True)
-    return Vw, Vm
 
+@njit(cache=cache)
+def couple_util(Cpriv,Ctot,pw,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
+    Cpub=Ctot-np.sum(Cpriv)
+    Vw=util(Cpriv[0],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True)
+    Vm=util(Cpriv[1],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True)
+    
+    return np.array([pw*Vw +(1.0-pw)*Vm, Vw, Vm])
 
 @njit(cache=cache)
 def value_of_choice(cons,par,sol,iP,EVw_i,EVm_i,part,power,love,pars2):

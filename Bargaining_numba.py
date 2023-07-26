@@ -6,14 +6,12 @@ from numba import njit,prange,config
 import UserFunctions_numba as usr
 import vfi as vfi
 from quantecon.optimize.nelder_mead import nelder_mead
+import setup
 upper_envelope=usr.create(usr.value_of_choice)
-# set gender indication as globals
-woman = 1
-man = 2
- 
-parallel=False
-config.DISABLE_JIT = False
 
+#general configuratiion and glabal variables (common across files)
+config.DISABLE_JIT = setup.nojit;parallel=setup.parallel;cache=setup.cache
+woman=setup.woman;man=setup.man
 
 class HouseholdModelClass(EconModelClass):
     
@@ -260,52 +258,50 @@ def solve_intraperiod(sol,par):
     C_pub,  Cw_priv, Cm_priv, grid_marg_u, grid_marg_u_for_inv, grid_marg_u_s, grid_marg_u_for_inv_s, grid_u_s, grid_marg_uw, grid_marg_um =\
         sol.pre_Ctot_C_pub, sol.pre_Ctot_Cw_priv, sol.pre_Ctot_Cm_priv, par.grid_marg_u, par.grid_marg_u_for_inv, par.grid_marg_u_s,\
         par.grid_marg_u_for_inv_s, par.grid_u_s, par.grid_marg_uw, par.grid_marg_um
-    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,True)
-    
+    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,True)  
     ϵ = par.grid_Ctot[0]/2.0 # to compute numerical deratives
 
-    ################ Singles part: only marg_util for EGM #####################
+    ################ Singles part #####################
+    minus_util_s = lambda x,resources,pars:-usr.util(x,resources,*pars[:-1])
     for i,C_tot in enumerate(par.grid_Ctot):
-        # get util from consumption and the numerical derivative(only needed for EGM...)
-        grid_u_s[i] = -usr.optimizer(usr.obj_s,1.0e-8, C_tot-1.0e-8,args=(C_tot,*pars[:-1]))[1]
-        forward  =    -usr.optimizer(usr.obj_s,1.0e-8, C_tot+ϵ-1.0e-8,args=(C_tot+ϵ,*pars[:-1]))[1]
-        backward =    -usr.optimizer(usr.obj_s,1.0e-8, C_tot-ϵ-1.0e-8,args=(C_tot-ϵ,*pars[:-1]))[1]
+        # get util from consumption and the numerical derivative
+        grid_u_s[i] = -usr.optimizer(minus_util_s,1.0e-8, C_tot-1.0e-8,args=(C_tot,pars))[1]
+        
+        # compute numerical derivative of vf of singles over total consumption
+        forward  =    -usr.optimizer(minus_util_s,1.0e-8, C_tot+ϵ-1.0e-8,args=(C_tot+ϵ,pars))[1]
+        backward =    -usr.optimizer(minus_util_s,1.0e-8, C_tot-ϵ-1.0e-8,args=(C_tot-ϵ,pars))[1]
         grid_marg_u_s[i] = (forward - backward)/(2*ϵ)
         
     #Create grid of inverse marginal utility 
     grid_marg_u_for_inv_s=np.flip(grid_marg_u_s) 
-  
-      
-    ################ Couples part ##########################
-    bounds = np.array([[0.0,1.0],[0.0,1.0]]) # minimization bounds
-    for iP in prange(par.num_power):
         
-        x0 = np.array([0.33,0.33])#initial condition (to be updated)
-        power=par.grid_power[iP]
-        
+    ################ Couples part ##########################  
+    couples_util=lambda cp, prs: usr.couple_util(cp,*prs)[0]#fun to maximize
+    for iP in prange(par.num_power):     
         for iwlp,wlp in enumerate(par.grid_wlp):
             for i,C_tot in enumerate(par.grid_Ctot):
                 
+                # initialize
+                bounds=np.array([[0.0,C_tot],[0.0,C_tot]]);ini_cond=np.array([0.33,0.33]);power=par.grid_power[iP]
+                
                 # estimate
-                res = nelder_mead(usr.couple_util,x0,bounds=bounds,args=(C_tot,power,1.0-wlp,*pars),tol_f=1e-10,tol_x=1e-10)
+                res = nelder_mead(couples_util,ini_cond*C_tot,bounds=bounds,args=((C_tot,power,1.0-wlp,*pars),))
 
                 # unpack
-                Cw_priv[iwlp,iP,i]= res.x[0]*C_tot
-                Cm_priv[iwlp,iP,i]= res.x[1]*C_tot
+                Cw_priv[iwlp,iP,i]= res.x[0];Cm_priv[iwlp,iP,i]= res.x[1]  
                 C_pub[iwlp,iP,i] = C_tot - Cw_priv[iwlp,iP,i] - Cm_priv[iwlp,iP,i]
                 
                 # update initial conidtion
-                x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
+                ini_cond=res.x/C_tot if i<par.num_Ctot-1 else np.array([0.33,0.33])
                 
                 # get individual derivative
-                forward_w,  forward_m  = usr.couple_util_ind(res.x, C_tot+ϵ,power,1.0-wlp,*pars)
-                backward_w, backward_m = usr.couple_util_ind(res.x,C_tot-ϵ,power,1.0-wlp,*pars)
-                grid_marg_uw[iwlp,iP,i] = (forward_w - backward_w)/(2*ϵ) #women's der
-                grid_marg_um[iwlp,iP,i] = (forward_m - backward_m)/(2*ϵ) #men's der
-                grid_marg_u[iwlp,iP,i] = power*grid_marg_uw[iwlp,iP,i]+\
-                          (1.0-power)*grid_marg_um[iwlp,iP,i]            #couple's der.
-
-            #Create grid of inverse marginal utility 
+                _, forward_w,  forward_m  = usr.couple_util(res.x,C_tot+ϵ,power,1.0-wlp,*pars)
+                _, backward_w, backward_m = usr.couple_util(res.x,C_tot-ϵ,power,1.0-wlp,*pars)
+                grid_marg_uw[iwlp,iP,i] = (forward_w - backward_w)/(2*ϵ) 
+                grid_marg_um[iwlp,iP,i] = (forward_m - backward_m)/(2*ϵ) 
+                
+            #Create grid of couple's marginal util and inverse marginal utility 
+            grid_marg_u[iwlp,iP,:] = power*grid_marg_uw[iwlp,iP,:]+(1.0-power)*grid_marg_um[iwlp,iP,:]
             grid_marg_u_for_inv[iwlp,iP,:]=np.flip(par.grid_marg_u[iwlp,iP,:])    
         
 
@@ -322,7 +318,7 @@ def integrate_single(sol,par,t):
     for iA in range(par.num_A):Ewd[:,iA] = sol.Vw_marg_single[t+1,:,iA].flatten() @ par.Π_zw[t] 
     for iA in range(par.num_A):Emd[:,iA] = sol.Vm_marg_single[t+1,:,iA].flatten() @ par.Π_zm[t]
     
-    return Ew,par.β*par.R*Ewd,Em,par.β*par.R*Emd
+    return Ew,par.β*par.R*Ewd,Em,par.β*par.R*Emd #par.β*par.R becuase used in Euler equation 
     
 @njit(parallel=parallel)
 def solve_single_egm(sol,par,t):

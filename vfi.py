@@ -3,13 +3,11 @@ import numpy as np
 from numba import njit,prange,config
 from consav import linear_interp, linear_interp_1d
 import UserFunctions_numba as usr
+import setup
 
-# set gender indication as globals
-woman = 1
-man = 2
- 
-config.DISABLE_JIT =False
-parallel=False
+#general configuratiion and glabal variables (common across files)
+config.DISABLE_JIT = setup.nojit;parallel=setup.parallel
+woman=setup.woman;man=setup.man
 
 ###############################################################################
 # SINGLE'S FUNCTIONS
