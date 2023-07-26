@@ -31,50 +31,62 @@ def resources_couple(t,Tr,A,inc_w,wlp,inc_m,R):
 
 
 @njit(cache=cache)
-def couple_util(Cpriv,Ctot,pw,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
+def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
+    """
+        Couple's utility given private (Cpriv np.array(float,float)) 
+        and total consumption Ctot (float)
+    """
     Cpub=Ctot-np.sum(Cpriv)
     Vw=util(Cpriv[0],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True)
     Vm=util(Cpriv[1],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True)
     
-    return np.array([pw*Vw +(1.0-pw)*Vm, Vw, Vm])
+    return np.array([power*Vw +(1.0-power)*Vm, Vw, Vm])
 
 @njit(cache=cache)
-def value_of_choice(cons,par,sol,iP,EVw_i,EVm_i,part,power,love,pars2):
+def couple_time_utility(Ctot,par,sol,iP,part,power,love,pars2,floatt=True):
+    """
+        Couple's utility given total consumption Ctot (float)
+    """    
+    p_Cw_priv, p_Cm_priv, p_C_pub =\
+        intraperiod_allocation(np.array([Ctot]),par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
+        
+    vw_new = util(p_Cw_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Ew                        
+    vm_new = util(p_Cm_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Em
+     
+    return vw_new, vm_new
+
+
+@njit(cache=cache)
+def value_of_choice2(cons,par,sol,iP,EVw_i,EVm_i,part,power,love,pars2):
     
     p_Cw_priv, p_Cm_priv, p_C_pub =\
-        intraperiod_allocation(cons,par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
+        intraperiod_allocation(np.array([cons]),par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
         
-    #p_Ew=linear_interp.interp_1d(par.grid_A,EVw_i,savings)
-    #p_Em=linear_interp.interp_1d(par.grid_A,EVm_i,savings)
      
-    vw_new = util(p_Cw_priv,p_C_pub,*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Ew                        
-    vm_new = util(p_Cm_priv,p_C_pub,*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Em
+    vw_new = util(p_Cw_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Ew                        
+    vm_new = util(p_Cm_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Em
      
     return vw_new, vm_new
      
     
 @njit(cache=cache)
-def intraperiod_allocation(C_tot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm_priv):
+def intraperiod_allocation(C_tot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm_priv):
+ 
+    #if vector: # interpolate pre-computed solution if C_tot is vector        
+    Cw_priv,Cm_priv=np.ones((2,len(C_tot)))    
+    linear_interp.interp_1d_vec(grid_Ctot,pre_Ctot_Cw_priv,C_tot,Cw_priv)
+    linear_interp.interp_1d_vec(grid_Ctot,pre_Ctot_Cm_priv,C_tot,Cm_priv)
 
-    # interpolate pre-computed solution
-    j1 = linear_interp.binary_search(0,num_Ctot,grid_Ctot,C_tot)
-    Cw_priv = linear_interp_1d._interp_1d(grid_Ctot,pre_Ctot_Cw_priv,C_tot,j1)
-    Cm_priv = linear_interp_1d._interp_1d(grid_Ctot,pre_Ctot_Cm_priv,C_tot,j1)
-    C_pub = C_tot - Cw_priv - Cm_priv 
-
-    return Cw_priv, Cm_priv, C_pub
+    return Cw_priv, Cm_priv, C_tot - Cw_priv - Cm_priv #returns numpy arrays
         
-@njit(cache=cache)    
-def obj_s(x,Ctot,pρ,pϕ1,pϕ2,pα1,pα2,pθ,pλ,ptb):#=-utility of consuming x
-    return -util(x,Ctot-x,pρ,pϕ1,pϕ2,pα1,pα2,pθ,pλ,ptb)
 
 @njit(cache=cache)
 def intraperiod_allocation_single(C_tot,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
     
-    args=(C_tot,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
+    args=(ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
  
     #find private and public expenditure to max util
-    C_priv = optimizer(obj_s,1.0e-6, C_tot - 1.0e-6,args=args)[0]
+    C_priv = optimizer(lambda x,y,args:-util(x,y-x,*args),1.0e-6, C_tot - 1.0e-6,args=(C_tot,args))[0]
     
     C_pub = C_tot - C_priv
     return C_priv,C_pub
@@ -185,7 +197,7 @@ def mc_simulate(statein,Piin,shocks):
 ##########################
 
 def grid_fat_tails(gmin,gmax,gridpoints):
-    """create a grid with fat tail, centered and symmetric around gmin+gmax
+    """Create a grid with fat tail, centered and symmetric around gmin+gmax
     
     Args: 
         gmin (float): min of grid
