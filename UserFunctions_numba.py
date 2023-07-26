@@ -4,6 +4,7 @@ from scipy.integrate import quad
 import numpy as np#import autograd.numpy as np#
 from consav import linear_interp, linear_interp_1d,quadrature
 from numba import config 
+from consav.grids import nonlinspace
 config.DISABLE_JIT = False
 cache=True
 # set gender indication as globals
@@ -21,7 +22,7 @@ def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
 @njit(cache=cache)
 def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
-    return np.log(c_priv)#-1.1*(1.0-ishom)#((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)++ love 
+    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love 
 
 @njit(cache=cache)
 def resources_couple(t,Tr,A,inc_w,wlp,inc_m,R):   
@@ -94,10 +95,12 @@ def labor_income(t0,t1,t2,T,Tr,sigma_persistent,sigma_init,npts):
         for t in range(T-1):Pi[t]=np.eye(npts)
         
     for t in range(T):X[t][:]=np.exp(X[t]+t0+t1*t+t2*t**2)
-    for t in range(Tr,T):X[t][:]=0.1
+    for t in range(Tr,T):X[t][:]=0.2
 
     return np.array(X), Pi
    
+
+
 ###########################
 # Uncertainty below       #
 ###########################
@@ -186,6 +189,23 @@ def mc_simulate(statein,Piin,shocks):
 ##########################
 # Other routines below
 ##########################
+
+def grid_fat_tails(gmin,gmax,gridpoints):
+    """create a grid with fat tail, centered and symmetric around gmin+gmax
+    
+    Args: 
+        gmin (float): min of grid
+        gmax(float): max of grids
+        gridpoints(int): number of gridpoints (odd number)
+    
+    """ 
+    odd_num = np.mod(gridpoints,2)
+    mid=(gmax+gmin)/2.0
+    summ=gmin+gmax
+    first_part = nonlinspace(gmin,mid,(gridpoints+odd_num)//2,1.3)
+    last_part = np.flip(summ - nonlinspace(gmin,mid,(gridpoints-odd_num)//2 + 1,1.3))[1:]
+    return np.append(first_part,last_part)
+
 @njit 
 def optimizer(obj,a,b,args=(),tol=1e-6): 
     """ golden section search optimizer 

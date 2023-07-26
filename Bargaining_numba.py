@@ -41,24 +41,24 @@ class HouseholdModelClass(EconModelClass):
         par.EGM = True # Want to use the EGM method to solve the model?
         
         par.R = 1.00#3
-        par.β = 1.00#/par.R # Discount factor
+        par.β = 1.00# Discount factor
         
         par.div_A_share = 0.5 # divorce share of wealth to wife
 
         # Utility: CES aggregator or additively linear
         par.ρ = 2.0#        # CRRA      
         par.α1 = 0.55
-        par.α2 = 0.0
+        par.α2 = 0.45
         par.ϕ1 = 0.2
         par.ϕ2 = (1.0-par.ρ)/par.ϕ1
         
         # production of home good
-        par.θ = 1.0#0.21 #weight on money vs. time to produce home good
+        par.θ = 0.21 #weight on money vs. time to produce home good
         par.λ = 0.19 #elasticity betwen money and time in public good
         par.tb = 0.2 #time spend on public goods by singles
         
         #Taste shock
-        par.σ = 0.0000005 #taste shock applied to working/not working
+        par.σ = 0.01 #taste shock applied to working/not working
         
         ####################
         # state variables
@@ -68,37 +68,29 @@ class HouseholdModelClass(EconModelClass):
         par.Tr = 6 # age at retirement
         
         # wealth
-        par.num_A = 300
-        par.max_A = 6.0
+        par.num_A = 300;par.max_A = 6.0
         
         # bargaining power
         par.num_power = 3
 
         # love/match quality
-        par.num_love = 41
-        par.max_love = 1.0
-
-        par.sigma_love = 0.1
-        par.num_shock_love = 5
+        par.num_love = 41;par.max_love = 1.0
+        par.sigma_love = 0.1;par.num_shock_love = 5
         
-        # income of men and women
-        par.num_zw=3
-        par.num_zm=3
-        par.num_z=par.num_zm*par.num_zw
+        # income of men and women: gridpoints
+        par.num_zw=3;par.num_zm=3; par.num_z=par.num_zm*par.num_zw
         
-        par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.σzw=0.00001;par.σ0zw=0.00005
-        par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;par.σzm=0.00001;par.σ0zm=0.00005
-
-        # pre-computation
-        par.num_Ctot = 200
-        par.max_Ctot = par.max_A*2
-
-        par.num_A_pd = par.num_A * 2
-
+        # income of men and women: parameters of the age log-polynomial
+        par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;
+    
+        # income of men and women: sd of income shocks in t=0 and after that
+        par.σzw=0.1;par.σ0zw=0.5;par.σzm=0.1;par.σ0zm=0.5
+        
+        # pre-computation fo consumption
+        par.num_Ctot = 200;par.max_Ctot = par.max_A*2
+        
         # simulation
-        par.seed = 9210
-        par.simT = par.T
-        par.simN = 50_000
+        par.seed = 9210;par.simT = par.T;par.simN = 50_000
         
     def allocate(self):
         par = self.par
@@ -109,43 +101,37 @@ class HouseholdModelClass(EconModelClass):
         par.simT = par.T
         self.setup_grids()
         
-        # singles
+        # singles: value functions (vf), consumption, marg util
         shape_singlew = (par.T,par.num_zw,par.num_A)
         shape_singlem = (par.T,par.num_zm,par.num_A)
-        sol.Vw_single = np.nan + np.ones(shape_singlew)
-        sol.Vm_single = np.nan + np.ones(shape_singlem)
-        sol.Cw_tot_single = np.nan + np.ones(shape_singlew)
-        sol.Cm_tot_single = np.nan + np.ones(shape_singlem)
-        
-        # EGM
-        sol.Vw_marg_single =  np.ones(shape_singlew)
-        sol.Vm_marg_single =  np.ones(shape_singlem)
+        sol.Vw_single = np.nan + np.ones(shape_singlew) #vf in t
+        sol.Vm_single = np.nan + np.ones(shape_singlem) #vf in t
+        sol.Cw_tot_single = np.nan + np.ones(shape_singlew) #priv+tot cons
+        sol.Cm_tot_single = np.nan + np.ones(shape_singlem) #priv+tot cons
+        sol.Vw_marg_single =  np.ones(shape_singlew) #marg util of cons in t
+        sol.Vm_marg_single =  np.ones(shape_singlem) #marg util of cons in t
 
-        # couples
-        shape_couple = (par.T,par.num_z,par.num_power,par.num_love,par.num_A)
-        sol.Vw_couple = np.nan + np.ones(shape_couple)
-        sol.Vm_couple = np.nan + np.ones(shape_couple)
+        # couples: value functions (vf), consumption, marg util, bargaining power
+        shape_couple = (par.T,par.num_z,par.num_power,par.num_love,par.num_A) # 2 is for men/women
+        sol.Vw_couple = np.nan + np.ones(shape_couple) #vf in t
+        sol.Vm_couple = np.nan + np.ones(shape_couple) #vf in t
+        sol.Vw_remain_couple = np.nan + np.ones(shape_couple) #vf|couple
+        sol.Vm_remain_couple = np.nan + np.ones(shape_couple) #vf|couple
+        sol.p_Vw_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+part)
+        sol.p_Vm_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+part)
+        sol.n_Vw_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+no part)
+        sol.n_Vm_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+no part)      
+        sol.p_C_tot_remain_couple = np.nan + np.ones(shape_couple)#cons|(couple+part)
+        sol.n_C_tot_remain_couple = np.nan + np.ones(shape_couple)#cons|(couple+nopart)
+        sol.remain_WLP = np.ones(shape_couple)#pr. of participation|couple
+        sol.marg_Vw_couple = np.zeros(shape_couple)#marg util of cons
+        sol.marg_Vm_couple = np.zeros(shape_couple)#marg util of cons
+        sol.marg_Vw_remain_couple = np.zeros(shape_couple)#marg util of cons|couple
+        sol.marg_Vm_remain_couple = np.zeros(shape_couple)#marg util of cons|couple     
+        sol.power_idx = np.zeros(shape_couple,dtype=np.int_)#barg power index
+        sol.power = np.zeros(shape_couple)                  #barg power value
 
-        sol.Vw_remain_couple = np.nan + np.ones(shape_couple)
-        sol.Vm_remain_couple = np.nan + np.ones(shape_couple)
-        sol.p_Vw_remain_couple = np.nan + np.ones(shape_couple)
-        sol.p_Vm_remain_couple = np.nan + np.ones(shape_couple)
-        sol.n_Vw_remain_couple = np.nan + np.ones(shape_couple)
-        sol.n_Vm_remain_couple = np.nan + np.ones(shape_couple)      
-        sol.p_C_tot_remain_couple = np.nan + np.ones(shape_couple)
-        sol.n_C_tot_remain_couple = np.nan + np.ones(shape_couple)
-        sol.remain_WLP = np.ones(shape_couple)
-        
-        sol.power_idx = np.zeros(shape_couple,dtype=np.int_)
-        sol.power = np.zeros(shape_couple)
-
-        # EGM
-        sol.marg_Vw_couple = np.zeros(shape_couple)
-        sol.marg_Vm_couple = np.zeros(shape_couple)
-        sol.marg_Vw_remain_couple = np.zeros(shape_couple)
-        sol.marg_Vm_remain_couple = np.zeros(shape_couple)
-
-        # pre-compute optimal consumption allocation
+        # pre-compute optimal consumption allocation: private and public
         shape_pre = (par.num_wlp,par.num_power,par.num_Ctot)
         sol.pre_Ctot_Cw_priv = np.nan + np.ones(shape_pre)
         sol.pre_Ctot_Cm_priv = np.nan + np.ones(shape_pre)
@@ -153,42 +139,42 @@ class HouseholdModelClass(EconModelClass):
         
         # simulation
         shape_sim = (par.simN,par.simT)
-        sim.Cw_priv = np.nan + np.ones(shape_sim)
-        sim.Cm_priv = np.nan + np.ones(shape_sim)
-        sim.Cw_pub = np.nan + np.ones(shape_sim)
-        sim.Cm_pub = np.nan + np.ones(shape_sim)
-        sim.Cw_tot = np.nan + np.ones(shape_sim)
-        sim.Cm_tot = np.nan + np.ones(shape_sim)
-        sim.C_tot = np.nan + np.ones(shape_sim)
-        sim.iz = np.ones(shape_sim,dtype=np.int_)
+        sim.Cw_priv = np.nan + np.ones(shape_sim) #w' priv consumption
+        sim.Cm_priv = np.nan + np.ones(shape_sim) #m' priv consumption
+        sim.Cw_pub = np.nan + np.ones(shape_sim)  #w' pub consumption
+        sim.Cm_pub = np.nan + np.ones(shape_sim)  #m' pub consumption
+        sim.Cw_tot = np.nan + np.ones(shape_sim)  #w' priv+pub consumption
+        sim.Cm_tot = np.nan + np.ones(shape_sim)  #m' priv+pub consumption
+        sim.C_tot = np.nan + np.ones(shape_sim)   #w+m total consumtion
+        sim.iz = np.ones(shape_sim,dtype=np.int_) #index of income shocks
         
-        sim.A = np.nan + np.ones(shape_sim)
-        sim.Aw = np.nan + np.ones(shape_sim)
-        sim.Am = np.nan + np.ones(shape_sim)
-        sim.couple = np.nan + np.ones(shape_sim)
-        sim.power_idx = np.ones(shape_sim,dtype=np.int_)
-        sim.power = np.nan + np.ones(shape_sim)
-        sim.love = np.nan + np.ones(shape_sim)
-        sim.incw = np.nan + np.ones(shape_sim)
-        sim.incm = np.nan + np.ones(shape_sim)
-        sim.WLP = np.ones(shape_sim,dtype=np.int_)
+        sim.A = np.nan + np.ones(shape_sim)             # total assets (m+w)
+        sim.Aw = np.nan + np.ones(shape_sim)            # w's assets
+        sim.Am = np.nan + np.ones(shape_sim)            # m's assets
+        sim.couple = np.nan + np.ones(shape_sim)        # In a couple? True/False
+        sim.power_idx = np.ones(shape_sim,dtype=np.int_)# barg power index
+        sim.power = np.nan + np.ones(shape_sim)         # barg power
+        sim.love = np.nan + np.ones(shape_sim)          # love
+        sim.incw = np.nan + np.ones(shape_sim)          # w's income
+        sim.incm = np.nan + np.ones(shape_sim)          # m's income
+        sim.WLP = np.ones(shape_sim,dtype=np.int_)      # w's labor participation
 
         # shocks
         np.random.seed(par.seed)
-        sim.draw_love = np.random.normal(size=shape_sim)
-        sim.shock_z=np.random.random_sample((par.simN,par.simT))
-        sim.shock_z_init=np.random.random_sample((2,par.simN))
-        sim.shock_taste=np.random.random_sample((par.simN,par.simT))
+        sim.draw_love = np.random.normal(size=shape_sim)           #love
+        sim.shock_z=np.random.random_sample((par.simN,par.simT))   #income
+        sim.shock_z_init=np.random.random_sample((2,par.simN))     #income initial
+        sim.shock_taste=np.random.random_sample((par.simN,par.simT))#taste shock
 
         # initial distribution
-        sim.init_A = par.grid_A[0] + np.zeros(par.simN)
-        sim.init_Aw = par.div_A_share * sim.init_A #np.zeros(par.simN)
-        sim.init_Am = (1.0 - par.div_A_share) * sim.init_A #np.zeros(par.simN)
-        sim.init_couple = np.ones(par.simN,dtype=bool)
-        sim.init_power_idx = par.num_power//2 * np.ones(par.simN,dtype=np.int_)
-        sim.init_love = np.zeros(par.simN)
-        sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2
-        sim.init_zm = np.ones(par.simN,dtype=np.int_)*par.num_zm//2
+        sim.init_A = par.grid_A[0] + np.zeros(par.simN)            #total assetes
+        sim.init_Aw = par.div_A_share * sim.init_A                 #w's assets
+        sim.init_Am = (1.0 - par.div_A_share) * sim.init_A         #m's assets
+        sim.init_couple = np.ones(par.simN,dtype=bool)             #state (couple=1/single=0)
+        sim.init_power_idx = par.num_power//2*np.ones(par.simN,dtype=np.int_)#barg power index
+        sim.init_love = np.zeros(par.simN)                         #initial love
+        sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2#w's initial income 
+        sim.init_zm = np.ones(par.simN,dtype=np.int_)*par.num_zm//2#m's initial income
         
 
     def setup_grids(self):
@@ -199,33 +185,23 @@ class HouseholdModelClass(EconModelClass):
         par.grid_Aw = par.div_A_share * par.grid_A
         par.grid_Am = (1.0 - par.div_A_share) * par.grid_A
 
-        # power. non-linear grid with more mass in both tails.
-        odd_num = np.mod(par.num_power,2)
-        first_part = nonlinspace(0.01,0.5,(par.num_power+odd_num)//2,1.3)
-        last_part = np.flip(.99 - nonlinspace(0.01,0.5,(par.num_power-odd_num)//2 + 1,1.3))[1:]
-        par.grid_power = np.append(first_part,last_part)
+        # bargaining power. non-linear grid with more mass in both tails.        
+        par.grid_power = usr.grid_fat_tails(0.01,0.99,par.num_power)
 
         # love grid and shock
-        if par.num_love>1:
-            par.grid_love = np.linspace(-par.max_love,par.max_love,par.num_love)#+200.0
-        else:
-            par.grid_love = np.array([0.0])#+200.0
-
-        if par.sigma_love<=1.0e-6:
-            par.num_shock_love = 1
-            par.grid_shock_love,par.grid_weight_love = np.array([0.0]),np.array([1.0])
-
-        else:
-            par.grid_shock_love,par.grid_weight_love = quadrature.normal_gauss_hermite(par.sigma_love,par.num_shock_love)
-
-        # grid for women's labor supply
-        par.grid_wlp=np.array([0.0,1.0])
-        par.num_wlp=len(par.grid_wlp)
+        if par.num_love>1:par.grid_love = np.linspace(-par.max_love,par.max_love,par.num_love)           
+        else:             par.grid_love = np.array([0.0])
+            
+        if par.sigma_love<=1.0e-6:par.grid_shock_love,par.grid_weight_love = np.array([0.0]),np.array([1.0]);par.num_shock_love = 1
+        else:par.grid_shock_love,par.grid_weight_love = quadrature.normal_gauss_hermite(par.sigma_love,par.num_shock_love)
         
-        # pre-computation
+        # grid for women's labor supply
+        par.grid_wlp=np.array([0.0,1.0]);par.num_wlp=len(par.grid_wlp)
+         
+        # pre-computation of total consumption
         par.grid_Ctot = nonlinspace(1.0e-6,par.max_Ctot,par.num_Ctot,1.1)
 
-        # EGM 
+        # marginal utility grids for EGM 
         par.grid_inv_marg_u = np.flip(par.grid_Ctot)
         par.grid_marg_u = np.nan + np.ones((par.num_wlp,par.num_power,par.num_Ctot))# couples
         par.grid_marg_uw = np.nan + np.ones((par.num_wlp,par.num_power,par.num_Ctot))# couples
@@ -234,19 +210,13 @@ class HouseholdModelClass(EconModelClass):
         par.grid_u_s =  np.nan + np.ones(par.num_Ctot)# singles
         par.grid_marg_u_s = np.nan + np.ones(par.num_Ctot)# singles
         par.grid_marg_u_for_inv_s = np.nan + np.ones(par.num_Ctot)# singles
-
-        
+   
         # income shocks grids: singles and couples
         par.grid_zw,par.Π_zw= usr.labor_income(par.t0w,par.t1w,par.t2w,par.T,par.Tr,par.σzw,par.σ0zw,par.num_zw)
         par.grid_zm,par.Π_zm= usr.labor_income(par.t0m,par.t1m,par.t2m,par.T,par.Tr,par.σzm,par.σ0zm,par.num_zm)
-        par.Π=[np.kron(par.Π_zw[t],par.Π_zm[t]) for t in range(par.T-1)]
-        
-        for t in range(par.T):par.grid_zw[t][:]=0.3
-        for t in range(par.T):par.grid_zm[t][:]=0.4
-        for t in range(par.Tr,par.T):par.grid_zw[t][:]=1e-8
-        for t in range(par.Tr,par.T):par.grid_zm[t][:]=0.1
-        par.matw0=usr.rouw_nonst(2,par.σ0zw,0.0,par.num_zw)[1][0]
-        par.matm0=usr.rouw_nonst(2,par.σ0zw,0.0,par.num_zw)[1][0]
+        par.Π=[np.kron(par.Π_zw[t],par.Π_zm[t]) for t in range(par.T-1)] # couples trans matrix    
+        par.matw0=usr.rouw_nonst(2,par.σ0zw,0.0,par.num_zw)[1][0] # w's initial income
+        par.matm0=usr.rouw_nonst(2,par.σ0zw,0.0,par.num_zw)[1][0] # m's initial income
         
     def solve(self):
 
@@ -264,7 +234,7 @@ class HouseholdModelClass(EconModelClass):
                 # choose EGM or vhi method to solve the single's problem
                 solve_single_egm(sol,par,t) if par.EGM else vfi.solve_single(sol,par,t)
                 
-                # solve the couple's problem
+                # solve the couple's problem (EGM vs. vfi done later)
                 solve_couple(sol,par,t)
     
                      
@@ -293,8 +263,7 @@ def solve_intraperiod(sol,par):
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,True)
     
     ϵ = par.grid_Ctot[0]/2.0 # to compute numerical deratives
-    #grid2=np.ones(grid_marg_u_s.shape)
-    #Dfun=grad(lambda x,*pars: -usr.optimizer(usr.obj_s,1.0e-8, C_tot-1.0e-8,args=(x,*pars[:-1]))[1])
+
     ################ Singles part: only marg_util for EGM #####################
     for i,C_tot in enumerate(par.grid_Ctot):
         # get util from consumption and the numerical derivative(only needed for EGM...)
@@ -303,8 +272,6 @@ def solve_intraperiod(sol,par):
         backward =    -usr.optimizer(usr.obj_s,1.0e-8, C_tot-ϵ-1.0e-8,args=(C_tot-ϵ,*pars[:-1]))[1]
         grid_marg_u_s[i] = (forward - backward)/(2*ϵ)
         
-        #x=usr.optimizer(usr.obj_s,1.0e-8, C_tot-1.0e-8,args=(C_tot,*pars[:-1]))[1]
-        #grid2[i]= Dfun(C_tot,*pars) 
     #Create grid of inverse marginal utility 
     grid_marg_u_for_inv_s=np.flip(grid_marg_u_s) 
   
@@ -323,29 +290,21 @@ def solve_intraperiod(sol,par):
                 res = nelder_mead(usr.couple_util,x0,bounds=bounds,args=(C_tot,power,1.0-wlp,*pars),tol_f=1e-10,tol_x=1e-10)
 
                 # unpack
-                resx=np.array([0.5,0.5])
-                Cw_priv[iwlp,iP,i]= resx[0]*C_tot
-                Cm_priv[iwlp,iP,i]= resx[1]*C_tot
+                Cw_priv[iwlp,iP,i]= res.x[0]*C_tot
+                Cm_priv[iwlp,iP,i]= res.x[1]*C_tot
                 C_pub[iwlp,iP,i] = C_tot - Cw_priv[iwlp,iP,i] - Cm_priv[iwlp,iP,i]
                 
                 # update initial conidtion
                 x0=res.x if i<par.num_Ctot-1 else np.array([0.33,0.33])
                 
-                # get the numerical derivative(only needed for EGM...)
-                forward  = nelder_mead(usr.couple_util,res.x,bounds=bounds,args=(C_tot+ϵ,power,1.0-wlp,*pars),tol_f=1e-10,tol_x=1e-10)
-                backward = nelder_mead(usr.couple_util,res.x,bounds=bounds,args=(C_tot-ϵ,power,1.0-wlp,*pars),tol_f=1e-10,tol_x=1e-10)
-                grid_marg_u[iwlp,iP,i] = (forward.fun - backward.fun)/(2*ϵ)
-                
-                assert forward.success==True
-                assert backward.success==True
                 # get individual derivative
-                
-                forward_w,  forward_m  = usr.couple_util_ind(resx, C_tot+ϵ,power,1.0-wlp,*pars)
-                backward_w, backward_m = usr.couple_util_ind(resx,C_tot-ϵ,power,1.0-wlp,*pars)
-                grid_marg_uw[iwlp,iP,i] = 0.5/C_tot#(forward_w - backward_w)/(2*ϵ)
-                grid_marg_um[iwlp,iP,i] = 0.5/C_tot#(forward_m - backward_m)/(2*ϵ)
-                grid_marg_u[iwlp,iP,i]=power*grid_marg_uw[iwlp,iP,i]+(1.0-power)*grid_marg_um[iwlp,iP,i]
-                #assert np.allclose(power*grid_marg_uw[iwlp,iP,i]+(1.0-power)*grid_marg_um[iwlp,iP,i],grid_marg_u[iwlp,iP,i])
+                forward_w,  forward_m  = usr.couple_util_ind(res.x, C_tot+ϵ,power,1.0-wlp,*pars)
+                backward_w, backward_m = usr.couple_util_ind(res.x,C_tot-ϵ,power,1.0-wlp,*pars)
+                grid_marg_uw[iwlp,iP,i] = (forward_w - backward_w)/(2*ϵ) #women's der
+                grid_marg_um[iwlp,iP,i] = (forward_m - backward_m)/(2*ϵ) #men's der
+                grid_marg_u[iwlp,iP,i] = power*grid_marg_uw[iwlp,iP,i]+\
+                          (1.0-power)*grid_marg_um[iwlp,iP,i]            #couple's der.
+
             #Create grid of inverse marginal utility 
             grid_marg_u_for_inv[iwlp,iP,:]=np.flip(par.grid_marg_u[iwlp,iP,:])    
         
@@ -622,42 +581,6 @@ def compute_couple(par,sol,EVd,t,iz,iL,iP,EVw,EVm,part,p_C_tot,p_Vw,p_Vm):
     
 
     if (t>=par.Tr) & (part):p_Vw[iz,iL,:,iP]=p_Vw[iz,iL,:,iP]=-1e10 
-    #return p_C_tot[iz,iL,:,iP], p_Vw[iz,iL,:,iP], p_Vm[iz,iL,:,iP]
-                    
-                 #   if np.minimum(np.diff(n_A_now))<0:# call upper envelop if crossing in optimal assets
-  
-#Below upper envelop to eliminate points that satisfy FOCs but are not global
-#optimum. This follows Iskhakov et al 2017
-@njit
-def upper_envelop(par,sol,ae,t,iz,iL,iP,EVw,EVm,part,p_C_tot,p_Vw,p_Vm):
-    
-    izw=iz//par.num_zm;izm=iz%par.num_zw# indexes 
-    resources = usr.resources_couple(t,par.Tr,par.grid_A,par.grid_zw[t,izw],par.grid_wlp[part],par.grid_zm[t,izm],par.R)
-    pars2=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb) 
-    love=par.grid_love[iL]; power = par.grid_power[iP]
-    
-    p_Ew,p_Em= np.ones((2,par.num_A))
-    
-    for j in range(par.num_A-1):
-        for i in range(par.num_A):
-        
-            if  (par.grid_A[i]>ae[j]) & (par.grid_A[i]<ae[j+1]):
-                print(j,i)
-                opt_a_new=np.interp(par.grid_A[i],ae[j:j+2],par.grid_A[j:j+2])
-                opt_c_new=resources[i]-opt_a_new
-                
-                vw_new,vm_new,v_new= \
-                    usr.value_of_choice(opt_c_new,par,sol,iP,EVw[iz,iL,iP,:],EVm[iz,iL,iP,:],part,power,love,resources[i]-opt_c_new,pars2)
-                
-                 
-                if (v_new>power*p_Vw[iz,iL,i,iP]+(1.0-power)*p_Vm[iz,iL,i,iP]): 
-                    print(j,i,111)
-                    p_C_tot[iz,iL,i,iP]=opt_c_new.copy()
-                    p_Vw[iz,iL,i,iP] = vw_new.copy()
-                    p_Vm[iz,iL,i,iP] = vm_new.copy()
-                    
-    return p_C_tot[iz,iL,:,iP]
-
 
 
 
