@@ -121,25 +121,26 @@ def solve_remain_couple(par,sol,t):
                 for iz in range(par.num_z):             
                     
                     idx=(iz,iL,iA,iP);izw=iz//par.num_zm;izm=iz%par.num_zw# indexes 
-                              
+                    # if (t==12) & (iP==1) & (iz==4) & (iA==49):
+                    #     import matplotlib.pyplot as plt
+                    #     remain_Vm[idx,1,1]=3.0          
                     # continuation values 
                     if t==(par.T-1):#last period 
                   
-                        n_C_tot[idx] = usr.resources_couple(t,par.Tr,par.grid_A[iA],par.grid_zw[t,izw],0.0,par.grid_zm[t,izm],par.R) #No savings, it's the last period 
+                        n_C_tot[idx] = usr.resources_couple(t,par.grid_A[iA],izw,izm,par,wlp=0)#usr.resources_couple(t,par.Tr,par.grid_A[iA],par.grid_zw[t,izw],0.0,par.grid_zm[t,izm],par.R) #No savings, it's the last period 
                          
                         # current utility from consumption allocation 
                         remain_Cw_priv, remain_Cm_priv, remain_C_pub =\
                             intraperiod_allocation(n_C_tot[idx],par.num_Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[0,iP],sol.pre_Ctot_Cm_priv[0,iP]) 
                         remain_Vw[idx] = usr.util(remain_Cw_priv,remain_C_pub,*pars2,par.grid_love[iL],couple,ishome) 
                         remain_Vm[idx] = usr.util(remain_Cm_priv,remain_C_pub,*pars2,par.grid_love[iL],couple,ishome) 
-                        remain_wlp[idx] = 0.0  
+                        remain_wlp[idx]=0.0;p_remain_Vm[idx]=p_remain_Vw[idx]=-1e10;n_remain_Vw[idx],n_remain_Vm[idx]=remain_Vw[idx],remain_Vm[idx]
                     else:#periods before the last 
                                  
                         coeffsW = prefilter(((0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:],k=3) 
                         coeffsM = prefilter(((0.0,par.max_A,par.num_A),), EVm[iz,iL,iP,:],k=3)
                          
-                        def M_resources(wlp):
-                            return usr.resources_couple(t,par.Tr,par.grid_A[iA],par.grid_zw[t,izw],wlp,par.grid_zm[t,izm],par.R) 
+                        def M_resources(wlp): return usr.resources_couple(t,par.grid_A[iA],izw,izm,par,wlp=wlp)
                         
                         #first find optimal total consumption 
                         p_args=(iL,par.grid_power[iP],EVw[iz,iL,iP,:],EVm[iz,iL,iP,:],coeffsW,coeffsM, 
@@ -151,12 +152,13 @@ def solve_remain_couple(par,sol,t):
                         def obj(x,t,M_resources,ishom,*args):#function to minimize (= maximize value of choice) 
                             return - value_of_choice_couple(x,t,M_resources,*args,ishom)[0]  
                         
-                        p_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[1]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[1]),0.0,*p_args))[0]
-                        n_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(par.grid_wlp[0]) - 1.0e-6,args=(t,M_resources(par.grid_wlp[0]),1.0,*n_args))[0] #if t<par.Tr else 1e-6 
+                        p_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(1) - 1.0e-6,args=(t,M_resources(1),0.0,*p_args))[0]
+                        n_C_tot[idx]=usr.optimizer(obj,1.0e-6, M_resources(0) - 1.0e-6,args=(t,M_resources(0),1.0,*n_args))[0] #if t<par.Tr else 1e-6 
      
                         # current utility from consumption allocation 
-                        p_v_couple, p_remain_Vw[idx], p_remain_Vm[idx] = value_of_choice_couple(p_C_tot[idx],t,M_resources(par.grid_wlp[1]),*p_args,0.0)
-                        n_v_couple, n_remain_Vw[idx], n_remain_Vm[idx] = value_of_choice_couple(n_C_tot[idx],t,M_resources(par.grid_wlp[0]),*n_args,1.0)
+                        p_v_couple, p_remain_Vw[idx], p_remain_Vm[idx] = value_of_choice_couple(p_C_tot[idx],t,M_resources(1),*p_args,0.0)
+                        n_v_couple, n_remain_Vw[idx], n_remain_Vm[idx] = value_of_choice_couple(n_C_tot[idx],t,M_resources(0),*n_args,1.0)
+                        if (t>=par.Tr):p_v_couple=p_remain_Vw[idx]=p_remain_Vm[idx]=-1e10 # before retirement no labor participation
                         
                         # get the probabilit of working, baed on couple utility choices
                         c=np.maximum(p_v_couple/par.σ,n_v_couple/par.σ)
@@ -168,7 +170,7 @@ def solve_remain_couple(par,sol,t):
                         remain_Vw[idx]=v_couple+(1.0-par.grid_power[iP])*(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
                         remain_Vm[idx]=v_couple+(-par.grid_power[iP])   *(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
 
- 
+        
     # return objects 
     return (remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp, np.ones(remain_Vw.shape), np.ones(remain_Vm.shape))
 
@@ -222,6 +224,9 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
     grid=((0.0,max_A,num_A),)
     EVw_plus=eval_spline(grid,coeffsW,point, order=3, extrap_mode="linear", diff="None") 
     EVm_plus=eval_spline(grid,coeffsM,point, order=3, extrap_mode="linear", diff="None")  
+    
+    # EVw_plus=linear_interp.interp_1d(grid_A, Eaw, M_resources - Ctot)  
+    # EVm_plus=linear_interp.interp_1d(grid_A, Eam, M_resources - Ctot)  
 
     Vw += β*EVw_plus  
     Vm += β*EVm_plus  

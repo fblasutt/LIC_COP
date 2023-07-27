@@ -36,7 +36,8 @@ class HouseholdModelClass(EconModelClass):
         par = self.par
         
         
-        par.EGM = True # Want to use the EGM method to solve the model?
+        par.EGM = True# Want to use the EGM method to solve the model?
+        #Note: to get EGM vs. vfi equivalence max assets should be VERY large
         
         par.R = 1.00#3
         par.β = 1.00# Discount factor
@@ -66,7 +67,7 @@ class HouseholdModelClass(EconModelClass):
         par.Tr = 6 # age at retirement
         
         # wealth
-        par.num_A = 25;par.max_A = 6.0
+        par.num_A = 300;par.max_A = 25.0
         
         # bargaining power
         par.num_power = 3
@@ -82,10 +83,10 @@ class HouseholdModelClass(EconModelClass):
         par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;
     
         # income of men and women: sd of income shocks in t=0 and after that
-        par.σzw=0.1;par.σ0zw=0.5;par.σzm=0.1;par.σ0zm=0.5
+        par.σzw=0.01;par.σ0zw=0.00005;par.σzm=0.01;par.σ0zm=0.00005
         
         # pre-computation fo consumption
-        par.num_Ctot = 200;par.max_Ctot = par.max_A*2
+        par.num_Ctot = 500;par.max_Ctot = par.max_A*2
         
         # simulation
         par.seed = 9210;par.simT = par.T;par.simN = 20_000
@@ -400,7 +401,7 @@ def solve_couple(sol,par,t):#Solve the couples's problem, choose EGM of VFI tech
     check_participation_constraints(*tuple_with_outcomes,par,sol,t)
     
     
-@njit(parallel=parallel)#TODO this should be parallelized
+@njit(parallel=parallel)
 def integrate_couple(par,sol,t): 
      
     EVw,EVm,pEVw,pEVm,pEVdw,pEVdm,EVdw,EVdm=np.ones((8,par.num_z,par.num_love,par.num_power,par.num_A)) 

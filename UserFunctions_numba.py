@@ -42,8 +42,8 @@ def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#func
         and total consumption Ctot (float)
     """
     Cpub=Ctot-np.sum(Cpriv)
-    Vw=util(Cpriv[0],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True)
-    Vm=util(Cpriv[1],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,ishom,True)
+    Vw=util(Cpriv[0],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,True,ishom)
+    Vm=util(Cpriv[1],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,True,ishom)
     
     return np.array([power*Vw +(1.0-power)*Vm, Vw, Vm])
 
@@ -88,13 +88,11 @@ def intraperiod_allocation(C_tot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm_priv):
 @njit(cache=cache)
 def intraperiod_allocation_single(C_tot,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
     
-    args=(ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
- 
     #find private and public expenditure to max util
+    args=(ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb)
     C_priv = optimizer(lambda x,y,args:-util(x,y-x,*args),1.0e-6, C_tot - 1.0e-6,args=(C_tot,args))[0]
     
-    C_pub = C_tot - C_priv
-    return C_priv,C_pub
+    return C_priv,C_tot - C_priv#=C_pub
 
 def labor_income(t0,t1,t2,T,Tr,sigma_persistent,sigma_init,npts):
     
@@ -276,7 +274,7 @@ def optimizer(obj,a,b,args=(),tol=1e-6):
         return (c+b)/2, obj((c+b)/2,*args)
     
 ####################################################################################
-# Upper envelop alogorithm - Adapted from COnsav to accomodate for couple_decisions
+# Upper envelop alogorithm - Adapted from Consav to accomodate for couple_decisions
 ###################################################################################
 def create(ufunc,use_inv_w=False):
     """ create upperenvelope function from the utility function ufunc
