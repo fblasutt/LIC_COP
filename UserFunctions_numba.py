@@ -23,12 +23,17 @@ def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0)
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
     return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love 
 
-@njit(cache=cache)
-def resources_couple(t,Tr,A,inc_w,wlp,inc_m,R):   
-    # change resources if retired: women should not work!
-    if t>=Tr: return R*A + inc_w     + inc_m
-    else:     return R*A + inc_w*wlp + inc_m
+# @njit(cache=cache)
+# def resources_couple(t,Tr,A,inc_w,wlp,inc_m,R):   
+#     # change resources if retired: women should not work!
+#     if t>=Tr: return R*A + inc_w     + inc_m
+#     else:     return R*A + inc_w*wlp + inc_m
 
+@njit(cache=cache) 
+def resources_couple(t,assets,izw,izm,par,wlp=1):    
+    # change resources if retired: women should not work! 
+    if t>=par.Tr: return par.R*assets + par.grid_zw[t,izw]                   + par.grid_zm[t,izm] 
+    else:         return par.R*assets + par.grid_zw[t,izw]*par.grid_wlp[wlp] + par.grid_zm[t,izm] 
 
 @njit(cache=cache)
 def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
@@ -50,8 +55,8 @@ def couple_time_utility(Ctot,par,sol,iP,part,power,love,pars2,floatt=True):
     p_Cw_priv, p_Cm_priv, p_C_pub =\
         intraperiod_allocation(np.array([Ctot]),par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
         
-    vw_new = util(p_Cw_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Ew                        
-    vm_new = util(p_Cm_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Em
+    vw_new = util(p_Cw_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])                       
+    vm_new = util(p_Cm_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])
      
     return vw_new, vm_new
 
@@ -63,8 +68,8 @@ def value_of_choice2(cons,par,sol,iP,EVw_i,EVm_i,part,power,love,pars2):
         intraperiod_allocation(np.array([cons]),par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
         
      
-    vw_new = util(p_Cw_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Ew                        
-    vm_new = util(p_Cm_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])#+par.β*p_Em
+    vw_new = util(p_Cw_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])                     
+    vm_new = util(p_Cm_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])
      
     return vw_new, vm_new
      
