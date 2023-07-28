@@ -83,7 +83,7 @@ class HouseholdModelClass(EconModelClass):
         par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;
     
         # income of men and women: sd of income shocks in t=0 and after that
-        par.σzw=0.01;par.σ0zw=0.00005;par.σzm=0.01;par.σ0zm=0.00005
+        par.σzw=0.1;par.σ0zw=0.00005;par.σzm=0.1;par.σ0zm=0.00005
         
         # pre-computation fo consumption
         par.num_Ctot = 500;par.max_Ctot = par.max_A*2
@@ -169,7 +169,7 @@ class HouseholdModelClass(EconModelClass):
         sim.init_A = par.grid_A[0] + np.zeros(par.simN)            #total assetes
         sim.init_Aw = par.div_A_share * sim.init_A                 #w's assets
         sim.init_Am = (1.0 - par.div_A_share) * sim.init_A         #m's assets
-        sim.init_couple = np.ones(par.simN,dtype=bool)             #state (couple=1/single=0)
+        sim.init_couple = np.zeros(par.simN,dtype=bool)             #state (couple=1/single=0)
         sim.init_power_idx = par.num_power//2*np.ones(par.simN,dtype=np.int_)#barg power index
         sim.init_love = np.zeros(par.simN)                         #initial love
         sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2#w's initial income 
@@ -263,7 +263,7 @@ def solve_intraperiod(sol,par):
     ϵ = par.grid_Ctot[0]/2.0 # to compute numerical deratives
 
     ################ Singles part #####################
-    minus_util_s = lambda x,resources,pars:-usr.util(x,resources,*pars[:-1])
+    minus_util_s = lambda x,resources,pars:-usr.util(x,resources-x,*pars[:-1])
     for i,C_tot in enumerate(par.grid_Ctot):
         # get util from consumption and the numerical derivative
         grid_u_s[i] = -usr.optimizer(minus_util_s,1.0e-8, C_tot-1.0e-8,args=(C_tot,pars))[1]
@@ -336,7 +336,7 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
     # Women
     for iz in prange(par.num_zw):
 
-        resw = (par.R*par.grid_Aw + par.grid_zw[t,iz])*0.000001
+        resw = (par.R*par.grid_Aw + par.grid_zw[t,iz])#*0.0000001
         if t==(par.T-1): cw[iz,:] = resw.copy() #consume all resources
         else: #before T-1 make consumption saving choices
             
@@ -357,13 +357,16 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
         linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_u_s,cw[iz,:],vw[iz,:])
         vw[iz,:]+=par.β*Ewt[iz,:]
             
+        C_priv, C_pub =  usr.intraperiod_allocation_single(cw[iz,0],par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
+        Util = usr.util(C_priv,C_pub,par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
+        
         # finally get marginal utility from consumption
         linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_marg_u_s,cw[iz,:],vdw[iz,:])
         
     # Men
     for iz in prange(par.num_zm):
 
-        resm = (par.R*par.grid_Am + par.grid_zm[t,iz])*0.000001
+        resm = (par.R*par.grid_Am + par.grid_zm[t,iz])#*0.0000001
         if t==(par.T-1): cm[iz,:] = resm.copy() #consume all resources
         else: #before T-1 make consumption saving choices
             
@@ -518,7 +521,7 @@ def compute_couple(par,sol,EVd,iP,idx,idz,love,power,pars2,EVw,EVm,part,res,C_to
     linear_interp.interp_1d_vec(par.grid_marg_u_for_inv[part,iP,:],par.grid_inv_marg_u,EVd,C_pd) #(i) 
     A_now =  par.grid_A.flatten() + C_pd                                                         #(ii) 
  
-    if 1>0:#np.any(np.diff(A_now)<0):#apply upperenvelope + enforce no borrowing constraint 
+    if 0>1:#np.any(np.diff(A_now)<0):#apply upperenvelope + enforce no borrowing constraint 
  
         upper_envelope(par.grid_A,A_now,C_pd,par.β*EVw[idz],par.β*EVm[idz],power,res, 
                        C_tot[idx],Vw[idx],Vm[idx],*pars) 

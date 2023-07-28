@@ -39,7 +39,7 @@ def solve_single(sol,par,t):
         # Women
         for iz in range(par.num_zw):
 
-            Mw = (par.R*par.grid_Aw[iA] + par.grid_zw[t,iz])*0.0000001 #resources
+            Mw = (par.R*par.grid_Aw[iA] + par.grid_zw[t,iz])#*0.0000001 #resources
 
             # search over optimal total consumption, , and store (OPPOSITE) of value
             argsw=(Mw,Ew[iz,:],*pars,par.β,par.grid_Aw)             
@@ -48,7 +48,7 @@ def solve_single(sol,par,t):
         # Men
         for iz in range(par.num_zm):
             
-            Mm = (par.R*par.grid_Am[iA] + par.grid_zm[t,iz])*0.0000001 # resources
+            Mm = (par.R*par.grid_Am[iA] + par.grid_zm[t,iz])#*0.0000001 # resources
     
             # search over optimal total consumption, and store (OPPOSITE) of value
             argsm=(Mm,Em[iz,:],*pars,par.β,par.grid_Am)                
@@ -68,8 +68,7 @@ def value_of_choice_single(C_tot,M,EV_next,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,β,grid_A
     # continuation value
     A = M - C_tot
     
-    #EVnext = linear_interp.interp_1d(grid_A,EV_next,A)
-    EVnext = linear_interp.interp_1d(grid_A,(-EV_next)**(1.0/(1.0-ρ)),A)**(1.0-ρ)/(1.0-ρ)
+    EVnext = linear_interp.interp_1d(grid_A,EV_next,A)
     
     # return discounted sum
     return Util + β*EVnext
@@ -220,13 +219,13 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
     Vw = usr.util(Cw_priv,C_pub,*pars)  
     Vm = usr.util(Cm_priv,C_pub,*pars)  
  
-    point=np.array([M_resources - Ctot]) 
-    grid=((0.0,max_A,num_A),)
-    EVw_plus=eval_spline(grid,coeffsW,point, order=3, extrap_mode="linear", diff="None") 
-    EVm_plus=eval_spline(grid,coeffsM,point, order=3, extrap_mode="linear", diff="None")  
+    # point=np.array([M_resources - Ctot]) 
+    # grid=((0.0,max_A,num_A),)
+    # EVw_plus=eval_spline(grid,coeffsW,point, order=3, extrap_mode="linear", diff="None") 
+    # EVm_plus=eval_spline(grid,coeffsM,point, order=3, extrap_mode="linear", diff="None")  
     
-    # EVw_plus=linear_interp.interp_1d(grid_A, Eaw, M_resources - Ctot)  
-    # EVm_plus=linear_interp.interp_1d(grid_A, Eam, M_resources - Ctot)  
+    EVw_plus=linear_interp.interp_1d(grid_A, Eaw, M_resources - Ctot)  
+    EVm_plus=linear_interp.interp_1d(grid_A, Eam, M_resources - Ctot)  
 
     Vw += β*EVw_plus  
     Vm += β*EVm_plus  
