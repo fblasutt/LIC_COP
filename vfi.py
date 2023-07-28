@@ -97,7 +97,7 @@ def solve_remain_couple(par,sol,t):
     if t<(par.T-1): EVw, EVm = integrate(par,sol,t)  
  
     # initialize 
-    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp = np.ones((9,par.num_z,par.num_love,par.num_A,par.num_power)) 
+    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp,wgt_w,wgt_m = np.ones((11,par.num_z,par.num_love,par.num_A,par.num_power)) 
 
     #parameters: useful to unpack this to improve speed 
     couple=1.0;ishome=1.0#;k=par.interp
@@ -171,7 +171,7 @@ def solve_remain_couple(par,sol,t):
 
         
     # return objects 
-    return (remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp, np.ones(remain_Vw.shape), np.ones(remain_Vm.shape))
+    return (remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp, np.ones(remain_Vw.shape), np.ones(remain_Vm.shape),wgt_w,wgt_m)
 
 @njit#this should be parallelized, but it's tricky... 
 def integrate(par,sol,t): 
