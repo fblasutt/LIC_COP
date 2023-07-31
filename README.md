@@ -4,11 +4,11 @@
 This repository contains accompanying code for solution and simulation of limited commitment dynamic bargaining models.
 
 The skeleton of this repository comes from Thomas Jorgensen's [Household Bargaining Guide](https://github.com/ThomasHJorgensen/HouseholdBargainingGuide), which is extended
-by including income shocks and taste shocks for participation (soon enough I will add human capital accumulation).
+by including women's labor force participation, income shocks and taste shocks for participation (soon enough I will add human capital accumulation).
 
 The idea is to have a compact and fast (numba is used almost everywhere) basic dynamic collective model with limited commitment. A list of files follow:
 
-- model.ipynb: describe the baseline model
+- model.ipynb: describes the baseline model
 - Bargaining_numba.py: solve and simulate the model using the method of endogenous gridpoints
 - UserFunctions_numba.py: utility functions, budget constraints and other utilities used in Bargaining_numba.py
 - time.py: time the solution and simulation of the model
