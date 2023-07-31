@@ -23,12 +23,6 @@ def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0)
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
     return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love 
 
-# @njit(cache=cache)
-# def resources_couple(t,Tr,A,inc_w,wlp,inc_m,R):   
-#     # change resources if retired: women should not work!
-#     if t>=Tr: return R*A + inc_w     + inc_m
-#     else:     return R*A + inc_w*wlp + inc_m
-
 @njit(cache=cache) 
 def resources_couple(t,assets,izw,izm,par,wlp=1):    
     # change resources if retired: women should not work! 

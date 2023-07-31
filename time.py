@@ -15,50 +15,31 @@ matplotlib.rc('font', **font)
 plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
-# settings for models to solve
-T = 20
-specs = {
-    'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.1,'T':T,'Tr':2*T//3,'num_love':3}}
-}
-
-# solve different models (takes several minutes)
-#model  = brg.HouseholdModelClass(name='model_1',par=specs['model 1']['par'])
+# create the model
+specs = {'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.2,'T':20,'Tr':2*20//3,'num_love':15}}}
 modelj = brgj.HouseholdModelClass(name='model_1',par=specs['model 1']['par'])
 
 
-#solve
-tic=time.time()
+#solve and simulate the model
 modelj.solve()
-toc=time.time()
-print('Time elapsed is {}'.format(toc-tic))
+modelj.simulate()
 
 
-tic=time.time()
-modelj.simulate() 
-toc=time.time()
-print('Time elapsed is {}'.format(toc-tic))
+#Now thast solutions and simulations have been compiled once, time it
+
+tic=time.time();modelj.solve();toc=time.time()
+print('Time elapsed for model solution is {}'.format(toc-tic))
+
+tic=time.time();modelj.simulate();toc=time.time()
+print('Time elapsed for model simulation is {}'.format(toc-tic))
 
 
-# tic=time.time()
-# model.solve()
-# toc=time.time()
-# print('Time elapsed is {}'.format(toc-tic))
-
-# tic=time.time()
-# model.simulate()
-# toc=time.time()
-# print('Time elapsed is {}'.format(toc-tic))
-
-# print('Differences is {}'.format(np.min(model.sol.C_pub_couple[0,:,:,:]-modelj.sol.C_pub_couple[0,4,:,:,:])))
-
-# print('Differences is {}'.format(np.max(model.sol.Vw_remain_couple[0,:,:,:]-modelj.sol.Vw_remain_couple[0,4,:,:,:])))
-
-# print('Differences is {}'.format((modelj.sim.Cw_tot-model.sim.Cw_tot).max()))
+###################################
+# Create basic figurs
+##################################
 
 import UserFunctions_numba as usr
-par=modelj.par
-sol=modelj.sol
-sim=modelj.sim
+par=modelj.par;sol=modelj.sol;sim=modelj.sim
 agg_cons,home_good=np.zeros((2,*sim.Cw_pub.shape))
 for t in range(par.simT):
     for i in range(par.simN):

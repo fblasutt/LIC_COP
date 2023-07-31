@@ -36,7 +36,7 @@ class HouseholdModelClass(EconModelClass):
         par = self.par
         
         
-        par.EGM = False# Want to use the EGM method to solve the model?
+        par.EGM = True# Want to use the EGM method to solve the model?
         #Note: to get EGM vs. vfi equivalence max assets should be VERY large
         
         par.R = 1.00#3
@@ -45,7 +45,7 @@ class HouseholdModelClass(EconModelClass):
         par.div_A_share = 0.5 # divorce share of wealth to wife
 
         # Utility: CES aggregator or additively linear
-        par.ρ = 2.0#        # CRRA      
+        par.ρ = 1.5#        # CRRA      
         par.α1 = 0.55
         par.α2 = 0.45
         par.ϕ1 = 0.2
@@ -57,7 +57,7 @@ class HouseholdModelClass(EconModelClass):
         par.tb = 0.2 #time spend on public goods by singles
         
         #Taste shock
-        par.σ = 0.01 #taste shock applied to working/not working
+        par.σ = 0.02 #taste shock applied to working/not working
         
         ####################
         # state variables
@@ -67,13 +67,13 @@ class HouseholdModelClass(EconModelClass):
         par.Tr = 6 # age at retirement
         
         # wealth
-        par.num_A = 300;par.max_A = 25.0
+        par.num_A = 25;par.max_A = 25.0
         
         # bargaining power
-        par.num_power = 3
+        par.num_power = 15
 
         # love/match quality
-        par.num_love = 41;par.max_love = 1.0
+        par.num_love = 41;par.max_love = 3.0
         par.sigma_love = 0.1;par.num_shock_love = 5
         
         # income of men and women: gridpoints
@@ -170,7 +170,7 @@ class HouseholdModelClass(EconModelClass):
         sim.init_Aw = par.div_A_share * sim.init_A                 #w's assets
         sim.init_Am = (1.0 - par.div_A_share) * sim.init_A         #m's assets
         sim.init_couple = np.ones(par.simN,dtype=bool)             #state (couple=1/single=0)
-        sim.init_power_idx = par.num_power//2*np.ones(par.simN,dtype=np.int_)#barg power index
+        sim.init_power_idx = 3*np.ones(par.simN,dtype=np.int_)#par.num_power//2*np.ones(par.simN,dtype=np.int_)#barg power index
         sim.init_love = np.zeros(par.simN)                         #initial love
         sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2#w's initial income 
         sim.init_zm = np.ones(par.simN,dtype=np.int_)*par.num_zm//2#m's initial income
@@ -447,9 +447,10 @@ def solve_remain_couple_egm(par,sol,t):
     if t<(par.T-1): EVw, EVm, EVdw, EVdm = integrate_couple(par,sol,t)
  
     # initialize 
-    Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wlp,Vwd,Vmd,wgt_w,wgt_m=np.zeros((13,par.num_z,par.num_love,par.num_A,par.num_power)) 
+    Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wlp,Vwd,Vmd,wgt_w,wgt_m,wgt_w_p,wgt_m_p,wgt_w_n,wgt_m_n\
+        =np.zeros((17,par.num_z,par.num_love,par.num_A,par.num_power)) 
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)    
-      
+    cw,cm = sol.Cw_tot_single[t],sol.Cm_tot_single[t] 
     for iL in prange(par.num_love): 
         for iP in range(par.num_power):            
             for iz in range(par.num_z):  
@@ -511,32 +512,14 @@ def solve_remain_couple_egm(par,sol,t):
                     Vmd[idx]=wlp[idx]*p_Vmd+(1.0-wlp[idx])*n_Vmd #expected marginal util before taste shock
                       
                     #weight on marginal utility if divorce
-                    wgt_w_p=    (par.div_A_share)**2*(p_C_tot[idx])*(1.0/sol.Cw_tot_single[t,izw,:])
-                    wgt_w_n=    (par.div_A_share)**2*(n_C_tot[idx])*(1.0/sol.Cw_tot_single[t,izw,:])
-                    wgt_m_p=(1.0-par.div_A_share)**2*(p_C_tot[idx])*(1.0/sol.Cm_tot_single[t,izm,:])
-                    wgt_m_n=(1.0-par.div_A_share)**2*(n_C_tot[idx])*(1.0/sol.Cm_tot_single[t,izm,:])
+                    wgt_w_p[idx]=    (par.div_A_share)**2*(p_C_tot[idx])*(1.0/cw[izw,:])
+                    wgt_w_n[idx]=    (par.div_A_share)**2*(n_C_tot[idx])*(1.0/cw[izw,:])
+                    wgt_m_p[idx]=(1.0-par.div_A_share)**2*(p_C_tot[idx])*(1.0/cm[izm,:])
+                    wgt_m_n[idx]=(1.0-par.div_A_share)**2*(n_C_tot[idx])*(1.0/cm[izm,:])
                     
-                    wgt_w[idx]=wlp[idx]*wgt_w_p+(1.0-wlp[idx])*wgt_w_n
-                    wgt_m[idx]=wlp[idx]*wgt_m_p+(1.0-wlp[idx])*wgt_m_n
-                    # if iP==1:
-                    #     wlp[idx][3,4]=1.0
-                    #     import matplotlib.pyplot as plt
-                    #     cgrid=np.linspace(8.0,15.0,1000)
-                    #     βEw,βEm=np.ones((2,1000))
-                    #     iA=299
-                    #     cwp,cmp,cpub=usr.intraperiod_allocation(cgrid,par.grid_Ctot,sol.pre_Ctot_Cw_priv[0,iP],sol.pre_Ctot_Cm_priv[0,iP])
-                    #     linear_interp.interp_1d_vec(par.grid_A,par.β*EVw[idz],n_res[iA]-cgrid,βEw)
-                    #     linear_interp.interp_1d_vec(par.grid_A,par.β*EVm[idz],n_res[iA]-cgrid,βEm)
-                    #     vw=usr.util(cwp,cpub,*pars,love,True,1.0-par.grid_wlp[0])+βEw
-                    #     vm=usr.util(cmp,cpub,*pars,love,True,1.0-par.grid_wlp[0])+βEm
-                    #     plt.plot(cgrid,power*vw+(1.0-power)*vm)
-                    #     plt.axvline(x =n_C_tot[idx][iA])
-                    #     plt.show()
-                        
-                        #cc=np.ones(1)
-                        #ratio_s=linear_interp_1d.interp_1d(par.grid_Ctot,par.grid_cpriv_s,n_C_tot[idx][iA]/2.0)/(n_C_tot[idx][iA]/2.0)
-                        #der=(cwp[0]+cmp[0]+2*)
-                        
+                    wgt_w[idx]=wlp[idx]*wgt_w_p[idx]+(1.0-wlp[idx])*wgt_w_n[idx]
+                    wgt_m[idx]=wlp[idx]*wgt_m_p[idx]+(1.0-wlp[idx])*wgt_m_n[idx]
+ 
     return (Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wlp,Vwd,Vmd,wgt_w,wgt_m) # return a tuple
  
 @njit    
@@ -597,7 +580,7 @@ def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,
                 max_Sw = np.max(Sw)
                 max_Sm = np.max(Sm)
             
-                if 1>0:#(min_Sw >= 0.0) & (min_Sm >= 0.0): # all values are consistent with marriage
+                if (min_Sw >= 0.0) & (min_Sm >= 0.0): # all values are consistent with marriage
                     for iP in range(par.num_power):
             
                         # overwrite output for couple
@@ -608,7 +591,7 @@ def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,
                         power_idx[idx] = iP
                         power[idx] = par.grid_power[iP]
             
-                elif 0>1:#(max_Sw < 0.0) | (max_Sm < 0.0): # no value is consistent with marriage
+                elif (max_Sw < 0.0) | (max_Sm < 0.0): # no value is consistent with marriage
                     for iP in range(par.num_power):
             
                         # overwrite output for couple
