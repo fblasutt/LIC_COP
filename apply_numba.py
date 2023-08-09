@@ -7,7 +7,7 @@ import Bargaining_numba as brg
 linestyles = ['-','--','-.',':',':']
 markers = ['o','s','D','*','P']
 linewidth = 2
-font_size = 6
+font_size = 8
 font = {'size':font_size}
 matplotlib.rc('font', **font)
 plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
