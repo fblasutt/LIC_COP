@@ -1,4 +1,4 @@
-from interpolation.splines import prefilter,eval_spline
+#from interpolation.splines import prefilter,eval_spline
 import numpy as np
 from numba import njit,prange,config
 from consav import linear_interp, linear_interp_1d
@@ -136,8 +136,8 @@ def solve_remain_couple(par,sol,t):
                         remain_wlp[idx]=0.0;p_remain_Vm[idx]=p_remain_Vw[idx]=-1e10;n_remain_Vw[idx],n_remain_Vm[idx]=remain_Vw[idx],remain_Vm[idx]
                     else:#periods before the last 
                                  
-                        coeffsW = prefilter(((0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:],k=3) 
-                        coeffsM = prefilter(((0.0,par.max_A,par.num_A),), EVm[iz,iL,iP,:],k=3)
+                        coeffsW = 1.0#prefilter(((0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:],k=3) 
+                        coeffsM = 1.0#prefilter(((0.0,par.max_A,par.num_A),), EVm[iz,iL,iP,:],k=3)
                          
                         def M_resources(wlp): return usr.resources_couple(t,par.grid_A[iA],izw,izm,par,wlp=wlp)
                         

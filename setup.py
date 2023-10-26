@@ -2,8 +2,8 @@
 #Setup configuration and global variables
 ########################################
 
-parallel=False
+parallel=True
 nojit=False
-cache=True
+cache=False
 woman = 1
 man = 2
