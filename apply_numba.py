@@ -17,7 +17,7 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 T = 4
 specs = {
     'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.0,'T':T,'num_love':5}},
-    'model 2':{'latexname':'$\sigma_{\psi}=0.1$', 'par':{'sigma_love':0.1,'T':T,'num_love':5}},
+    'model 2':{'latexname':'$\sigma_{\psi}=0.1$', 'par':{'sigma_love':0.0,'T':T,'num_love':5}},
 }
 
 # solve different models (takes several minutes)
@@ -38,8 +38,8 @@ for model_name in ('model 1','model 2'):
     model = models[model_name]
     par = model.par
     sol = model.sol
-    iz=4;izw=iz//model.par.num_zm;izm=iz//model.par.num_zw
-    t=0; i = 0; iA=5;iL=par.num_love//2;sex='women'
+    iz=3;izw=iz//model.par.num_zm;izm=iz//model.par.num_zw
+    t=1; i = 0; iA=0;iL=par.num_love//2-1;sex='women'
     fig, ax = plt.subplots()
 
     # pick relevant values
@@ -109,41 +109,41 @@ for iL in (par.num_love//2,):
         
         
 # Simulated Path
-var_list = ('Cw_priv','Cm_priv','Cw_pub','C_tot','A','power','power_idx','love','couple','WLP')
+var_list = ('couple','A','power','love','WLP')#'Cw_priv','Cm_priv','Cw_pub','C_tot',
 model_list = ('model 1','model 2')
 
-for init_power_idx in (1,10):
-    for init_love in (0.0,0.2): 
 
-            for i,name in enumerate(model_list):
-                model = models[name]
+init_power_idx=7
+init_love=0.1
+for i,name in enumerate(model_list):
+    model = models[name]
 
-                # show how starting of in a low bargaining power gradually improves
-                model.sim.init_power_idx[:] = init_power_idx
-                model.sim.init_love[:] = init_love 
-                model.simulate()
-                
-            for var in var_list:
+    # show how starting of in a low bargaining power gradually improves
+    model.sim.init_power_idx[:] = init_power_idx
+    model.sim.init_love[:] = init_love 
+    model.simulate()
+    
+for var in var_list:
 
-                fig, ax = plt.subplots()
-                
-                for i,name in enumerate(model_list):
-                    model = models[name]
+    fig, ax = plt.subplots()
+    
+    for i,name in enumerate(model_list):
+        model = models[name]
 
-                    # pick out couples (if not the share of couples is plotted)
-                    if var == 'couple':
-                        nan = 0.0
-                    else:
-                        I = model.sim.couple<1
-                        nan = np.zeros(I.shape)
-                        nan[I] = np.nan
+        # pick out couples (if not the share of couples is plotted)
+        if var == 'couple':
+            nan = 0.0
+        else:
+            I = model.sim.couple<1
+            nan = np.zeros(I.shape)
+            nan[I] = np.nan
 
-                    # pick relevant variable for couples
-                    y = getattr(model.sim,var)        
-                    y = np.nanmean(y + nan,axis=0)
+        # pick relevant variable for couples
+        y = getattr(model.sim,var)        
+        y = np.nanmean(y + nan,axis=0)
 
-                    ax.plot(y,marker=markers[i],linestyle=linestyles[i],linewidth=linewidth,label=model.spec['latexname']);
-                    ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power_idx}, init_love={init_love}')
+        ax.plot(y,marker=markers[i],linestyle=linestyles[i],linewidth=linewidth,label=model.spec['latexname']);
+        ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power_idx}, init_love={init_love}')
 
-                plt.legend()
-                plt.tight_layout()
+    plt.legend()
+    plt.tight_layout()

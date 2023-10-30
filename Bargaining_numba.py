@@ -67,7 +67,7 @@ class HouseholdModelClass(EconModelClass):
         par.Tr = 6 # age at retirement
         
         # wealth
-        par.num_A = 25;par.max_A = 25.0
+        par.num_A = 20;par.max_A = 25.0
         
         # bargaining power
         par.num_power = 15
@@ -185,7 +185,7 @@ class HouseholdModelClass(EconModelClass):
         par.grid_Am = (1.0 - par.div_A_share) * par.grid_A
 
         # bargaining power. non-linear grid with more mass in both tails.        
-        par.grid_power = usr.grid_fat_tails(0.01,0.99,par.num_power)
+        par.grid_power = np.linspace(0.01,0.99,par.num_power)#usr.grid_fat_tails(0.01,0.99,par.num_power)
 
         # love grid and shock
         if par.num_love>1:par.grid_love = np.linspace(-par.max_love,par.max_love,par.num_love)           
@@ -265,7 +265,7 @@ def solve_intraperiod(sol,par):
     ################ Singles part #####################
     minus_util_s = lambda x,resources,pars:-usr.util(x,resources-x,*pars[:-1])
     for i,C_tot in enumerate(par.grid_Ctot):
-        # get util from consumption and the numerical derivative
+        # get util from *total consumption=priv+public*  and the numerical derivative
         grid_cpriv_s[i] = usr.optimizer(minus_util_s,1.0e-8, C_tot-1.0e-8,args=(C_tot,pars))[0]
         
         # compute numerical derivative of vf of singles over total consumption
@@ -278,12 +278,13 @@ def solve_intraperiod(sol,par):
         
     ################ Couples part ##########################  
     couples_util=lambda cp, prs: usr.couple_util(cp,*prs)[0]#fun to maximize
+    ini_cond=np.array([0.33,0.33])#initial condition, to be overwritten
     for iP in prange(par.num_power):     
         for iwlp,wlp in enumerate(par.grid_wlp):
             for i,C_tot in enumerate(par.grid_Ctot):
                 
-                # initialize
-                bounds=np.array([[0.0,C_tot],[0.0,C_tot]]);ini_cond=np.array([0.33,0.33]);power=par.grid_power[iP]
+                # initialize bounds and bargaining power
+                bounds=np.array([[0.0,C_tot],[0.0,C_tot]]);power=par.grid_power[iP]
                 
                 # estimate
                 res = nelder_mead(couples_util,ini_cond*C_tot,bounds=bounds,args=((C_tot,power,1.0-wlp,*pars),))
@@ -340,7 +341,7 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
         if t==(par.T-1): cw[iz,:] = resw.copy() #consume all resources
         else: #before T-1 make consumption saving choices
             
-            # first get consumption out of grid using FOCs
+            # first get toatl -consumption out of grid using FOCs
             linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,Ewd[iz,:],cwt[iz,:])
             
             # use budget constraint to get current resources
@@ -367,7 +368,7 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
         if t==(par.T-1): cm[iz,:] = resm.copy() #consume all resources
         else: #before T-1 make consumption saving choices
             
-            # first get consumption out of grid using FOCs
+            # first get total consumption out of grid using FOCs
             linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,Emd[iz,:],cmt[iz,:])
             
             # use budget constraint to get current resources
@@ -512,10 +513,10 @@ def solve_remain_couple_egm(par,sol,t):
                     Vmd[idx]=wlp[idx]*p_Vmd+(1.0-wlp[idx])*n_Vmd #expected marginal util before taste shock
                       
                     #weight on marginal utility if divorce
-                    wgt_w_p[idx]=    (par.div_A_share)**2*(p_C_tot[idx])*(1.0/cw[izw,:])
-                    wgt_w_n[idx]=    (par.div_A_share)**2*(n_C_tot[idx])*(1.0/cw[izw,:])
-                    wgt_m_p[idx]=(1.0-par.div_A_share)**2*(p_C_tot[idx])*(1.0/cm[izm,:])
-                    wgt_m_n[idx]=(1.0-par.div_A_share)**2*(n_C_tot[idx])*(1.0/cm[izm,:])
+                    wgt_w_p[idx]=    (par.div_A_share)#**2*(p_C_tot[idx])*(1.0/cw[izw,:])
+                    wgt_w_n[idx]=    (par.div_A_share)#**2*(n_C_tot[idx])*(1.0/cw[izw,:])
+                    wgt_m_p[idx]=(1.0-par.div_A_share)#**2*(p_C_tot[idx])*(1.0/cm[izm,:])
+                    wgt_m_n[idx]=(1.0-par.div_A_share)#**2*(n_C_tot[idx])*(1.0/cm[izm,:])
                     
                     wgt_w[idx]=wlp[idx]*wgt_w_p[idx]+(1.0-wlp[idx])*wgt_w_n[idx]
                     wgt_m[idx]=wlp[idx]*wgt_m_p[idx]+(1.0-wlp[idx])*wgt_m_n[idx]

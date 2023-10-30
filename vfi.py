@@ -1,4 +1,4 @@
-#from interpolation.splines import prefilter,eval_spline
+from interpolation.splines import prefilter,eval_spline
 import numpy as np
 from numba import njit,prange,config
 from consav import linear_interp, linear_interp_1d
@@ -136,8 +136,8 @@ def solve_remain_couple(par,sol,t):
                         remain_wlp[idx]=0.0;p_remain_Vm[idx]=p_remain_Vw[idx]=-1e10;n_remain_Vw[idx],n_remain_Vm[idx]=remain_Vw[idx],remain_Vm[idx]
                     else:#periods before the last 
                                  
-                        coeffsW = 1.0#prefilter(((0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:],k=3) 
-                        coeffsM = 1.0#prefilter(((0.0,par.max_A,par.num_A),), EVm[iz,iL,iP,:],k=3)
+                        coeffsW = prefilter(((0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:],k=3) 
+                        coeffsM = prefilter(((0.0,par.max_A,par.num_A),), EVm[iz,iL,iP,:],k=3)
                          
                         def M_resources(wlp): return usr.resources_couple(t,par.grid_A[iA],izw,izm,par,wlp=wlp)
                         
@@ -219,10 +219,10 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
     Vw = usr.util(Cw_priv,C_pub,*pars)  
     Vm = usr.util(Cm_priv,C_pub,*pars)  
  
-    # point=np.array([M_resources - Ctot]) 
-    # grid=((0.0,max_A,num_A),)
-    # EVw_plus=eval_spline(grid,coeffsW,point, order=3, extrap_mode="linear", diff="None") 
-    # EVm_plus=eval_spline(grid,coeffsM,point, order=3, extrap_mode="linear", diff="None")  
+    #point=np.array([M_resources - Ctot]) 
+    #grid=((0.0,max_A,num_A),)
+    #EVw_plus=eval_spline(grid,coeffsW,point, order=3, extrap_mode="linear", diff="None") 
+    #EVm_plus=eval_spline(grid,coeffsM,point, order=3, extrap_mode="linear", diff="None")  
     
     EVw_plus=linear_interp.interp_1d(grid_A, Eaw, M_resources - Ctot)  
     EVm_plus=linear_interp.interp_1d(grid_A, Eam, M_resources - Ctot)  

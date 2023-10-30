@@ -16,4 +16,5 @@ The idea is to have a compact and fast (numba is used almost everywhere) basic d
   used for checking the accuracy iof EGM (NB: for the comparison set the number of gridpoints for assets to a large number, like 300...). You can activate
   this method by setting par.EGM to False in Bargaining_numba.py.
 - setup.py: switch on/off numba and parallelization. Useful for debugging. Setting parallilization to True implies very long compilation times...
+- description.py compare value funciton interation with EGM method
 

@@ -16,12 +16,12 @@ woman=setup.woman;man=setup.man
 @njit(cache=cache)
 def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
     home_time=(2*tb+ishom*(1-tb)) if couple else tb
-    return (θ*x**λ+(1.0-θ)*home_time**λ)**(1.0/λ) 
+    return (θ*x**λ+(1.0-θ)*home_time**λ)**(1.0/λ)
 
 @njit(cache=cache)
 def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
-    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love 
+    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love#+couple*1000+(1.0-ishom)*1000
 
 @njit(cache=cache) 
 def resources_couple(t,assets,izw,izm,par,wlp=1):    
