@@ -83,10 +83,10 @@ class HouseholdModelClass(EconModelClass):
         par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;
     
         # income of men and women: sd of income shocks in t=0 and after that
-        par.σzw=0.1;par.σ0zw=0.00005;par.σzm=0.1;par.σ0zm=0.00005
+        par.σzw=0.0001;par.σ0zw=0.00005;par.σzm=0.0001;par.σ0zm=0.00005
         
         # pre-computation fo consumption
-        par.num_Ctot = 500;par.max_Ctot = par.max_A*2
+        par.num_Ctot = 1000;par.max_Ctot = par.max_A
         
         # simulation
         par.seed = 9210;par.simT = par.T;par.simN = 20_000
@@ -260,7 +260,7 @@ def solve_intraperiod(sol,par):
         sol.pre_Ctot_C_pub, sol.pre_Ctot_Cw_priv, sol.pre_Ctot_Cm_priv, par.grid_marg_u, par.grid_marg_u_for_inv, par.grid_marg_u_s,\
         par.grid_marg_u_for_inv_s, par.grid_cpriv_s, par.grid_marg_uw, par.grid_marg_um
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb,True)  
-    ϵ = par.grid_Ctot[0]/2.0 # to compute numerical deratives
+    ϵ = 1e-10# delta increase in xs to compute numerical deratives
 
     ################ Singles part #####################
     minus_util_s = lambda x,resources,pars:-usr.util(x,resources-x,*pars[:-1])
@@ -296,9 +296,9 @@ def solve_intraperiod(sol,par):
                 # update initial conidtion
                 ini_cond=res.x/C_tot if i<par.num_Ctot-1 else np.array([0.33,0.33])
                 
-                # get individual derivative
-                _, forward_w,  forward_m  = usr.couple_util(res.x,C_tot+ϵ,power,1.0-wlp,*pars)
-                _, backward_w, backward_m = usr.couple_util(res.x,C_tot-ϵ,power,1.0-wlp,*pars)
+                # get individual derivative using envelope theorem: share of private/public C doesnt change
+                _, forward_w,  forward_m  = usr.couple_util(res.x/(C_tot)*(C_tot+ϵ),C_tot+ϵ,power,1.0-wlp,*pars)
+                _, backward_w, backward_m = usr.couple_util(res.x/(C_tot)*(C_tot+ϵ),C_tot-ϵ,power,1.0-wlp,*pars)
                 grid_marg_uw[iwlp,iP,i] = (forward_w - backward_w)/(2*ϵ) 
                 grid_marg_um[iwlp,iP,i] = (forward_m - backward_m)/(2*ϵ) 
                 
@@ -476,11 +476,10 @@ def solve_remain_couple_egm(par,sol,t):
                     linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_marg_uw[0,iP,:],n_C_tot[idx],Vwd[idx])
                     linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_marg_um[0,iP,:],n_C_tot[idx],Vmd[idx])
                  
-                    wgt_w[idx]=    (par.div_A_share)**2*(n_C_tot[idx])*(1.0/sol.Cw_tot_single[t,izw,:])
-                    wgt_m[idx]=(1.0-par.div_A_share)**2*(n_C_tot[idx])*(1.0/sol.Cm_tot_single[t,izm,:])
+                    wgt_w[idx]=    (par.div_A_share)#**2*(n_C_tot[idx])*(1.0/sol.Cw_tot_single[t,izw,:])
+                    wgt_m[idx]=(1.0-par.div_A_share)#**2*(n_C_tot[idx])*(1.0/sol.Cm_tot_single[t,izm,:])
                 else:#periods before the last 
                              
-                    
                     EVd = power*EVdw[iz,iL,iP,:]+(1.0-power)*EVdm[iz,iL,iP,:]#couple's marg util
                     
                     # compute optimal consumption and utility given partecipation (0/1).

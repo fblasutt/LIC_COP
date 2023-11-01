@@ -21,7 +21,7 @@ def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
 @njit(cache=cache)
 def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
-    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love#+couple*1000+(1.0-ishom)*1000
+    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love#+couple*1000#+(1.0-ishom)*1000#
 
 @njit(cache=cache) 
 def resources_couple(t,assets,izw,izm,par,wlp=1):    
@@ -33,11 +33,13 @@ def resources_couple(t,assets,izw,izm,par,wlp=1):
 def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
     """
         Couple's utility given private (Cpriv np.array(float,float)) 
-        and total consumption Ctot (float)
+        and total consumption Ctot (float). Note that love does
+        not matter here, as this fun is used for intra-period 
+        allocation of private and home consumption
     """
     Cpub=Ctot-np.sum(Cpriv)
-    Vw=util(Cpriv[0],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,True,ishom)
-    Vm=util(Cpriv[1],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,True,ishom)
+    Vw=util(Cpriv[0],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=True,ishom=ishom)
+    Vm=util(Cpriv[1],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=True,ishom=ishom)
     
     return np.array([power*Vw +(1.0-power)*Vm, Vw, Vm])
 
