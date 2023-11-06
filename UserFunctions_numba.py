@@ -21,7 +21,7 @@ def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
 @njit(cache=cache)
 def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
-    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love+couple*3.25#+(1.0-ishom)*1000#
+    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love+couple#+(1.0-ishom)*1000#
 
 @njit(cache=cache) 
 def resources_couple(t,assets,izw,izm,par,wlp=1):    

@@ -16,8 +16,8 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 # settings for models to solve
 T = 4
 specs = {
-    'model 1':{'latexname':'EGM', 'par':{'sigma_love':0.0000002,'T':T,'num_A':100,'max_A':1.5,'num_love':2,"num_power":15,"EGM":True}},
-    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.0000002,'T':T,'num_A':100,'max_A':1.5,'num_love':2,"num_power":15,"EGM":False}},
+    'model 1':{'latexname':'EGM', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":15,"EGM":True}},
+    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":15,"EGM":False}},
 }
 
 # solve different models (takes several minutes)
@@ -115,7 +115,7 @@ for var in var_list:
 
 #Two nice final checks (inidipendent on weights at divorce)
 iP=0
-t=2
+t=0
 iL=2
 util_model1=model.par.grid_power[iP]*getattr(models['model 1'].sol,'p_Vw_remain_couple')[t,iz,iP,iL-2,:]+\
       (1.0-model.par.grid_power[iP])*getattr(models['model 1'].sol,'p_Vm_remain_couple')[t,iz,iP,iL-2,:]

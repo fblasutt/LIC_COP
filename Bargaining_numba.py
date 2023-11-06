@@ -49,15 +49,15 @@ class HouseholdModelClass(EconModelClass):
         par.α1 = 0.55
         par.α2 = 0.45
         par.ϕ1 = 0.2
-        par.ϕ2 = (1.0-par.ρ)#/par.ϕ1
+        par.ϕ2 = (1.0-par.ρ)/par.ϕ1
         
         # production of home good
-        par.θ = 1.0 #weight on money vs. time to produce home good
+        par.θ = 0.21 #weight on money vs. time to produce home good
         par.λ = 0.19 #elasticity betwen money and time in public good
         par.tb = 0.2 #time spend on public goods by singles
         
         #Taste shock
-        par.σ = 0.000000002 #taste shock applied to working/not working
+        par.σ = 0.02 #taste shock applied to working/not working
         
         ####################
         # state variables
@@ -80,7 +80,7 @@ class HouseholdModelClass(EconModelClass):
         par.num_zw=3;par.num_zm=3; par.num_z=par.num_zm*par.num_zw
         
         # income of men and women: parameters of the age log-polynomial
-        par.t0w=-0.4;par.t1w=0.0;par.t2w=0.0;par.t0m=-0.4;par.t1m=0.0;par.t2m=0.0;
+        par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;
     
         # income of men and women: sd of income shocks in t=0 and after that
         par.σzw=0.0001;par.σ0zw=0.00005;par.σzm=0.0001;par.σ0zm=0.00005
