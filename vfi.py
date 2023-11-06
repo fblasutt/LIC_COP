@@ -219,13 +219,13 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
     Vw = usr.util(Cw_priv,C_pub,*pars)  
     Vm = usr.util(Cm_priv,C_pub,*pars)  
  
-    #point=np.array([M_resources - Ctot]) 
-    #grid=((0.0,max_A,num_A),)
-    #EVw_plus=eval_spline(grid,coeffsW,point, order=3, extrap_mode="linear", diff="None") 
-    #EVm_plus=eval_spline(grid,coeffsM,point, order=3, extrap_mode="linear", diff="None")  
+    point=np.array([M_resources - Ctot]) 
+    grid=((0.0,max_A,num_A),)
+    EVw_plus=eval_spline(grid,coeffsW,point, order=3, extrap_mode="linear", diff="None") 
+    EVm_plus=eval_spline(grid,coeffsM,point, order=3, extrap_mode="linear", diff="None")  
     
-    EVw_plus=linear_interp.interp_1d(grid_A, Eaw, M_resources - Ctot)  
-    EVm_plus=linear_interp.interp_1d(grid_A, Eam, M_resources - Ctot)  
+    #EVw_plus=linear_interp.interp_1d(grid_A, Eaw, M_resources - Ctot)  
+    #EVm_plus=linear_interp.interp_1d(grid_A, Eam, M_resources - Ctot)  
 
     Vw += β*EVw_plus  
     Vm += β*EVm_plus  

@@ -21,7 +21,7 @@ def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
 @njit(cache=cache)
 def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
-    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love#+couple*1000#+(1.0-ishom)*1000#
+    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love+couple*3.25#+(1.0-ishom)*1000#
 
 @njit(cache=cache) 
 def resources_couple(t,assets,izw,izm,par,wlp=1):    
@@ -30,7 +30,7 @@ def resources_couple(t,assets,izw,izm,par,wlp=1):
     else:         return par.R*assets + par.grid_zw[t,izw]*par.grid_wlp[wlp] + par.grid_zm[t,izm] 
 
 @njit(cache=cache)
-def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#function to minimize
+def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):#function to minimize
     """
         Couple's utility given private (Cpriv np.array(float,float)) 
         and total consumption Ctot (float). Note that love does
@@ -43,6 +43,16 @@ def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple):#func
     
     return np.array([power*Vw +(1.0-power)*Vm, Vw, Vm])
 
+
+@njit(cache=cache)
+def marg_util(C_tot,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
+    
+    share = 1.0/(1.0 + (α2/α1)**(1.0/(1.0-ϕ1)))
+    constant = α1*share**ϕ1+α2*(1.0-share)**ϕ1
+    return ϕ1*C_tot**((1.0-ρ)*ϕ1 -1.0)*constant**(1.0 - ρ)
+    
+    
+    
 @njit(cache=cache)
 def couple_time_utility(Ctot,par,sol,iP,part,power,love,pars2,floatt=True):
     """
@@ -194,6 +204,19 @@ def mc_simulate(statein,Piin,shocks):
 ##########################
 # Other routines below
 ##########################
+
+@njit
+def deriv(x,f,ϵ=1e-8):
+    """
+    Create derivative for array f defined on the x array x
+    """
+    
+    forward,backward=np.empty((2,len(x)))
+    linear_interp.interp_1d_vec(x,f,x+ϵ,forward)
+    linear_interp.interp_1d_vec(x,f,x-ϵ,backward)
+    
+    return (forward-backward)/(2*ϵ)
+    
 
 def grid_fat_tails(gmin,gmax,gridpoints):
     """Create a grid with fat tail, centered and symmetric around gmin+gmax

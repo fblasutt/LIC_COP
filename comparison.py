@@ -16,8 +16,8 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 # settings for models to solve
 T = 4
 specs = {
-    'model 1':{'latexname':'EGM', 'par':{'sigma_love':0.2,'T':T,'num_A':400,'max_A':1.5,'num_love':3,"EGM":True}},
-    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.2,'T':T,'num_A':400,'max_A':1.5,'num_love':3,"EGM":False}},
+    'model 1':{'latexname':'EGM', 'par':{'sigma_love':0.0000002,'T':T,'num_A':100,'max_A':1.5,'num_love':2,"num_power":15,"EGM":True}},
+    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.0000002,'T':T,'num_A':100,'max_A':1.5,'num_love':2,"num_power":15,"EGM":False}},
 }
 
 # solve different models (takes several minutes)
@@ -37,13 +37,13 @@ for name,spec in specs.items():
 #Policy Functions
 cmaps = ('viridis','gray')
 model_list = ('model 1','model 2')
-t = 0
+t = 2
 iz=0
 
-
+models['model 2'].sol.marg_Vw_couple=models['model 2'].sol.marg_Vw_couple+np.nan
 par = models['model 1'].par
-for iL in (par.num_love//2+1,): 
-    for var in ('p_Vw_remain_couple','n_C_tot_remain_couple','power','remain_WLP'):
+for iL in (par.num_love//2,): 
+    for var in ('p_Vw_remain_couple','n_C_tot_remain_couple','power','remain_WLP','marg_Vw_couple'):
 
         fig = plt.figure()
         ax = plt.axes(projection='3d')
@@ -116,13 +116,35 @@ for var in var_list:
 #Two nice final checks (inidipendent on weights at divorce)
 iP=0
 t=2
-util_model1=model.par.grid_power[iP]*getattr(models['model 1'].sol,'p_Vw_remain_couple')[t,iz,iP,iL-1,:]+\
-      (1.0-model.par.grid_power[iP])*getattr(models['model 1'].sol,'p_Vm_remain_couple')[t,iz,iP,iL-1,:]
+iL=2
+util_model1=model.par.grid_power[iP]*getattr(models['model 1'].sol,'p_Vw_remain_couple')[t,iz,iP,iL-2,:]+\
+      (1.0-model.par.grid_power[iP])*getattr(models['model 1'].sol,'p_Vm_remain_couple')[t,iz,iP,iL-2,:]
       
-util_model2=model.par.grid_power[iP]*getattr(models['model 2'].sol,'p_Vw_remain_couple')[t,iz,iP,iL-1,:]+\
-      (1.0-model.par.grid_power[iP])*getattr(models['model 2'].sol,'p_Vm_remain_couple')[t,iz,iP,iL-1,:]
+util_model2=model.par.grid_power[iP]*getattr(models['model 2'].sol,'p_Vw_remain_couple')[t,iz,iP,iL-2,:]+\
+      (1.0-model.par.grid_power[iP])*getattr(models['model 2'].sol,'p_Vm_remain_couple')[t,iz,iP,iL-2,:]
 
+fig, ax = plt.subplots()
 plt.plot(util_model1-util_model2)
 
-plt.plot(model.par.grid_A,getattr(models['model 1'].sol,'n_C_tot_remain_couple')[t,iz,0,iL-1,:],model.par.grid_A,getattr(models['model 2'].sol,'n_C_tot_remain_couple')[2,iz,0,iL-1,:])
-plt.plot(model.par.grid_power,getattr(models['model 1'].sol,'n_C_tot_remain_couple')[t,iz,:,iL-1,-1],model.par.grid_power,getattr(models['model 2'].sol,'n_C_tot_remain_couple')[2,iz,:,iL-1,-1])
+fig, ax = plt.subplots()
+plt.plot(model.par.grid_A,getattr(models['model 1'].sol,'p_C_tot_remain_couple')[t,iz,0,iL-2,:],
+         model.par.grid_A,getattr(models['model 2'].sol,'p_C_tot_remain_couple')[t,iz,0,iL-2,:])
+
+fig, ax = plt.subplots()
+plt.plot(model.par.grid_power,getattr(models['model 1'].sol,'p_C_tot_remain_couple')[t,iz,:,iL-2,0],
+         model.par.grid_power,getattr(models['model 2'].sol,'p_C_tot_remain_couple')[t,iz,:,iL-2,0])
+
+
+fig, ax = plt.subplots()
+plt.plot(model.par.grid_power,getattr(models['model 1'].sol,'power')[3,iz,:,iL-2,0],
+         model.par.grid_power,getattr(models['model 2'].sol,'power')[3,iz,:,iL-2,0])
+
+
+fig, ax = plt.subplots()
+plt.plot(model.par.grid_A,getattr(models['model 1'].sol,'power')[3,iz,0,iL-2,:],
+         model.par.grid_A,getattr(models['model 2'].sol,'power')[3,iz,0,iL-2,:])
+
+
+
+
+
