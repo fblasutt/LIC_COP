@@ -21,7 +21,7 @@ def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
 @njit(cache=cache)
 def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
-    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love+couple#+(1.0-ishom)*1000#
+    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love+couple*3.25#+(1.0-ishom)*1000#
 
 @njit(cache=cache) 
 def resources_couple(t,assets,izw,izm,par,wlp=1):    
@@ -54,37 +54,26 @@ def marg_util(C_tot,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
     
     
 @njit(cache=cache)
-def couple_time_utility(Ctot,par,sol,iP,part,power,love,pars2,floatt=True):
+def couple_time_utility(Ctot,par,sol,iP,part,love,pars2):
     """
         Couple's utility given total consumption Ctot (float)
     """    
     p_Cw_priv, p_Cm_priv, p_C_pub =\
-        intraperiod_allocation(np.array([Ctot]),par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
+        intraperiod_allocation(Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
         
-    vw_new = util(p_Cw_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])                       
-    vm_new = util(p_Cm_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])
+    vw_new = util(p_Cw_priv,p_C_pub,*pars2,love,True,1.0-par.grid_wlp[part])                       
+    vm_new = util(p_Cm_priv,p_C_pub,*pars2,love,True,1.0-par.grid_wlp[part])
      
     return vw_new, vm_new
 
 
-@njit(cache=cache)
-def value_of_choice2(cons,par,sol,iP,EVw_i,EVm_i,part,power,love,pars2):
-    
-    p_Cw_priv, p_Cm_priv, p_C_pub =\
-        intraperiod_allocation(np.array([cons]),par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
-        
-     
-    vw_new = util(p_Cw_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])                     
-    vm_new = util(p_Cm_priv[0],p_C_pub[0],*pars2,love,True,1.0-par.grid_wlp[part])
-     
-    return vw_new, vm_new
-     
     
 @njit(cache=cache)
 def intraperiod_allocation(C_tot,grid_Ctot,pre_Ctot_Cw_priv,pre_Ctot_Cm_priv):
  
-    #if vector: # interpolate pre-computed solution if C_tot is vector        
-    Cw_priv,Cm_priv=np.ones((2,len(C_tot)))    
+    #if vector: # interpolate pre-computed solution if C_tot is vector      
+    lenn=1 if np.isscalar(C_tot) else len(C_tot)
+    Cw_priv,Cm_priv=np.ones((2,lenn))    
     linear_interp.interp_1d_vec(grid_Ctot,pre_Ctot_Cw_priv,C_tot,Cw_priv)
     linear_interp.interp_1d_vec(grid_Ctot,pre_Ctot_Cm_priv,C_tot,Cm_priv)
 
@@ -295,7 +284,7 @@ def optimizer(obj,a,b,args=(),tol=1e-6):
 ####################################################################################
 # Upper envelop alogorithm - Adapted from Consav to accomodate for couple_decisions
 ###################################################################################
-def create(ufunc,use_inv_w=False):
+def create(ufunc):
     """ create upperenvelope function from the utility function ufunc
     
     Args:
@@ -305,7 +294,6 @@ def create(ufunc,use_inv_w=False):
     Returns:
 
         upperenvelope (callable): upperenvelope called as (grid_a,m_vec,c_vec,inv_w_vec,use_inv_w,grid_m,c_ast_vec,v_ast_vec,*args)
-        use_inv_w (bool,optional): assume that the post decision value-of-choice vector is a negative inverse
     
     """
 
@@ -340,23 +328,19 @@ def create(ufunc,use_inv_w=False):
         # the constraint is binding if the common m is smaller
         # than the smallest m implied by EGM step (m_vec[0])
 
-        im = 0
-        while im < Nm and grid_m[im] <= m_vec[0]:
-            
-            # a. consume all
-            c_ast_vec[im] = grid_m[im] 
-
-            # b. value of choice
-            u_w,u_m = ufunc(c_ast_vec[im],*args)
-            if use_inv_w:
-                v_ast_vec_w[im] = u_w + (-1.0/inv_w_vec_w[0])
-                v_ast_vec_m[im] = u_m + (-1.0/inv_w_vec_m[0])
-            else:
-                v_ast_vec_w[im] = u_w + inv_w_vec_w[0]
-                v_ast_vec_m[im] = u_m + inv_w_vec_m[0]
-
-            v_ast_vec[im] = power*v_ast_vec_w[im] + (1.0-power)*v_ast_vec_m[im]
-            im += 1
+        im = 0 
+        while im < Nm and grid_m[im] <= m_vec[0]: 
+             
+            # a. consume all 
+            c_ast_vec[im] = grid_m[im]  
+ 
+            # b. value of choice 
+            u_w,u_m = ufunc(c_ast_vec[im:im+1],*args) 
+            v_ast_vec_w[im] = u_w[0] + inv_w_vec_w[0] 
+            v_ast_vec_m[im] = u_m[0] + inv_w_vec_m[0] 
+ 
+            v_ast_vec[im] = power*v_ast_vec_w[im] + (1.0-power)*v_ast_vec_m[im] 
+            im += 1 
             
         # upper envellope
         # apply the upper envelope algorithm
@@ -402,30 +386,24 @@ def create(ufunc,use_inv_w=False):
                 if interp or extrap_above:
 
                     # o. implied guess
-                    c_guess = c_low + c_slope * (m - m_low)
-                    a_guess = m - c_guess
+                    c_guess = np.array([c_low + c_slope * (m - m_low)])
+                    a_guess = m - c_guess[0]
 
                     # oo. implied post-decision value function
                     inv_w = inv_w_low_w + inv_w_slope_w * (a_guess - a_low)     
                     inv_m = inv_w_low_m + inv_w_slope_m * (a_guess - a_low)       
 
                     # ooo. value-of-choice
-                    u_w,u_m = ufunc(c_guess,*args)
-                    if use_inv_w:
-                        
-                        v_guess_w = u_w + (-1/inv_w)
-                        v_guess_m = u_m + (-1/inv_m)
-                     
-                    else:
-                        v_guess_w = u_w + inv_w
-                        v_guess_m = u_m + inv_m
+                    u_w,u_m = ufunc(c_guess,*args)   
+                    v_guess_w = u_w[0] + inv_w
+                    v_guess_m = u_m[0] + inv_m
 
                     v_guess=power*v_guess_w+(1.0-power)*v_guess_m
                     
                     # oooo. update
                     if v_guess > v_ast_vec[im]:
                         v_ast_vec[im] = v_guess
-                        c_ast_vec[im] = c_guess
+                        c_ast_vec[im] = c_guess[0]
                         
                         # update utility for the couple
                         v_ast_vec_w[im] = v_guess_w

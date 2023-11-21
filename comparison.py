@@ -40,10 +40,10 @@ model_list = ('model 1','model 2')
 t = 2
 iz=0
 
-models['model 2'].sol.marg_Vw_couple=models['model 2'].sol.marg_Vw_couple+np.nan
+
 par = models['model 1'].par
 for iL in (par.num_love//2,): 
-    for var in ('p_Vw_remain_couple','n_C_tot_remain_couple','power','remain_WLP','marg_Vw_couple'):
+    for var in ('p_Vw_remain_couple','n_C_tot_remain_couple','power','remain_WLP'):
 
         fig = plt.figure()
         ax = plt.axes(projection='3d')
@@ -131,8 +131,8 @@ plt.plot(model.par.grid_A,getattr(models['model 1'].sol,'p_C_tot_remain_couple')
          model.par.grid_A,getattr(models['model 2'].sol,'p_C_tot_remain_couple')[t,iz,0,iL-2,:])
 
 fig, ax = plt.subplots()
-plt.plot(model.par.grid_power,getattr(models['model 1'].sol,'p_C_tot_remain_couple')[t,iz,:,iL-2,0],
-         model.par.grid_power,getattr(models['model 2'].sol,'p_C_tot_remain_couple')[t,iz,:,iL-2,0])
+plt.plot(model.par.grid_power,getattr(models['model 1'].sol,'p_C_tot_remain_couple')[3,iz,:,iL-2,0],
+         model.par.grid_power,getattr(models['model 2'].sol,'p_C_tot_remain_couple')[3,iz,:,iL-2,0])
 
 
 fig, ax = plt.subplots()
