@@ -331,62 +331,93 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
     cw=sol.Cw_tot_single[t,:,:];cm=sol.Cm_tot_single[t,:,:];cwt,Ewt,cwp=np.ones((3,par.num_zw,par.num_A));cmt,Emt,cmp=np.ones((3,par.num_zm,par.num_A));
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
     
-    #def loop_savings_singles(num_zi,grid_zi,grid_Ai,ci,Ei,,cit)
-    # Women
-    for iz in prange(par.num_zw):
+    #function to find optimal savings, called for both men and women below
+    def loop_savings_singles(par,num_zi,grid_zi,grid_Ai,ci,Ei,cit,Eit,cip,vi):
+        
+        for iz in prange(num_zi):
 
-        resw = (par.R*par.grid_Aw + par.grid_zw[t,iz])#*0.0000001
-        if t==(par.T-1): cw[iz,:] = resw.copy() #consume all resources
-        else: #before T-1 make consumption saving choices
+            resi = (par.R*grid_Ai + grid_zi[t,iz])#*0.0000001
+            if t==(par.T-1): ci[iz,:] = resi.copy() #consume all resources
+            else: #before T-1 make consumption saving choices
+                
+                # marginal utility next period
+                βEid=par.β*usr.deriv(grid_Ai,Ei[iz,:])
+                
+                # first get toatl -consumption out of grid using FOCs
+                linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEid,cwt[iz,:])
+                
+                # use budget constraint to get current resources
+                Ai_now = (grid_Ai.flatten() + cit[iz,:] - grid_zi[t,iz])/par.R
+                
+                # now interpolate onto common beginning-of-period asset grid to get consumption
+                linear_interp.interp_1d_vec(Ai_now,cit[iz,:],grid_Ai,ci[iz,:])
+                
+                # get consumption (+make sure that the no-borrowing constraint is respected)
+                ci[iz,:] = np.minimum(ci[iz,:], resi.copy())       
+                
+            # get utility: interpolate Exp value (line 1), current util (line 2) and add continuation (line 3)#TODO improve precision
+            linear_interp.interp_1d_vec(grid_Ai,Ei[iz,:], resi.copy()-ci[iz,:],Eit[iz,:])
+            linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_cpriv_s,ci[iz,:],cip[iz,:])
+            vi[iz,:]=usr.util(cip[iz,:],ci[iz,:]-cip[iz,:],*pars)+par.β*Eit[iz,:]
+        
+    loop_savings_singles(par,par.num_zw,par.grid_zw,par.grid_Aw,cw,Ew,cwt,Ewt,cwp,vw)#women savings
+    loop_savings_singles(par,par.num_zm,par.grid_zm,par.grid_Am,cm,Em,cmt,Emt,cmp,vm)#men   savings
+        
+    # # Women
+    # for iz in prange(par.num_zw):
+
+    #     resw = (par.R*par.grid_Aw + par.grid_zw[t,iz])#*0.0000001
+    #     if t==(par.T-1): cw[iz,:] = resw.copy() #consume all resources
+    #     else: #before T-1 make consumption saving choices
             
-            # marginal utility next period
-            βEwd=par.β*usr.deriv(par.grid_Aw,Ew[iz,:])
+    #         # marginal utility next period
+    #         βEwd=par.β*usr.deriv(par.grid_Aw,Ew[iz,:])
             
-            # first get toatl -consumption out of grid using FOCs
-            linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEwd,cwt[iz,:])
+    #         # first get toatl -consumption out of grid using FOCs
+    #         linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEwd,cwt[iz,:])
             
-            # use budget constraint to get current resources
-            Aw_now = (par.grid_Aw.flatten() + cwt[iz,:] - par.grid_zw[t,iz])/par.R
+    #         # use budget constraint to get current resources
+    #         Aw_now = (par.grid_Aw.flatten() + cwt[iz,:] - par.grid_zw[t,iz])/par.R
             
-            # now interpolate onto common beginning-of-period asset grid to get consumption
-            linear_interp.interp_1d_vec(Aw_now,cwt[iz,:],par.grid_Aw,cw[iz,:])
+    #         # now interpolate onto common beginning-of-period asset grid to get consumption
+    #         linear_interp.interp_1d_vec(Aw_now,cwt[iz,:],par.grid_Aw,cw[iz,:])
             
-            # get consumption (+make sure that the no-borrowing constraint is respected)
-            cw[iz,:] = np.minimum(cw[iz,:], resw.copy())       
+    #         # get consumption (+make sure that the no-borrowing constraint is respected)
+    #         cw[iz,:] = np.minimum(cw[iz,:], resw.copy())       
             
-        # get utility: interpolate Exp value (line 1), current util (line 2) and add continuation (line 3)#TODO improve precision
-        linear_interp.interp_1d_vec(par.grid_Aw,Ew[iz,:], resw.copy()-cw[iz,:],Ewt[iz,:])
-        linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_cpriv_s,cw[iz,:],cwp[iz,:])
-        vw[iz,:]=usr.util(cwp[iz,:],cw[iz,:]-cwp[iz,:],*pars)+par.β*Ewt[iz,:]
+    #     # get utility: interpolate Exp value (line 1), current util (line 2) and add continuation (line 3)#TODO improve precision
+    #     linear_interp.interp_1d_vec(par.grid_Aw,Ew[iz,:], resw.copy()-cw[iz,:],Ewt[iz,:])
+    #     linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_cpriv_s,cw[iz,:],cwp[iz,:])
+    #     vw[iz,:]=usr.util(cwp[iz,:],cw[iz,:]-cwp[iz,:],*pars)+par.β*Ewt[iz,:]
         
        
         
-    # Men
-    for iz in prange(par.num_zm):
+    # # Men
+    # for iz in prange(par.num_zm):
 
-        resm = (par.R*par.grid_Am + par.grid_zm[t,iz])#*0.0000001
-        if t==(par.T-1): cm[iz,:] = resm.copy() #consume all resources
-        else: #before T-1 make consumption saving choices
+    #     resm = (par.R*par.grid_Am + par.grid_zm[t,iz])#*0.0000001
+    #     if t==(par.T-1): cm[iz,:] = resm.copy() #consume all resources
+    #     else: #before T-1 make consumption saving choices
             
-            # marginal utility next period
-            βEmd=par.β*usr.deriv(par.grid_Am,Em[iz,:])
+    #         # marginal utility next period
+    #         βEmd=par.β*usr.deriv(par.grid_Am,Em[iz,:])
             
-            # first get total consumption out of grid using FOCs
-            linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEmd,cmt[iz,:])
+    #         # first get total consumption out of grid using FOCs
+    #         linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEmd,cmt[iz,:])
             
-            # use budget constraint to get current resources
-            Am_now = (par.grid_Am.flatten() + cmt[iz,:] - par.grid_zm[t,iz])/par.R
+    #         # use budget constraint to get current resources
+    #         Am_now = (par.grid_Am.flatten() + cmt[iz,:] - par.grid_zm[t,iz])/par.R
             
-            # now interpolate onto common beginning-of-period asset grid to get consumption
-            linear_interp.interp_1d_vec(Am_now,cwt[iz,:],par.grid_Am,cm[iz,:])
+    #         # now interpolate onto common beginning-of-period asset grid to get consumption
+    #         linear_interp.interp_1d_vec(Am_now,cwt[iz,:],par.grid_Am,cm[iz,:])
             
-            # get consumption (+make sure that the no-borrowing constraint is respected)
-            cm[iz,:] = np.minimum(cm[iz,:], resm.copy())
+    #         # get consumption (+make sure that the no-borrowing constraint is respected)
+    #         cm[iz,:] = np.minimum(cm[iz,:], resm.copy())
             
-        # get utility: interpolate Exp value (line 1), current util (line 2) and add continuation (line 3)#TODO improve precision
-        linear_interp.interp_1d_vec(par.grid_Am,Em[iz,:],resm.copy() - cm[iz,:],Emt[iz,:])
-        linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_cpriv_s,cm[iz,:],cmp[iz,:])
-        vm[iz,:]=usr.util(cmp[iz,:],cm[iz,:]-cmp[iz,:],*pars)+par.β*Emt[iz,:]
+    #     # get utility: interpolate Exp value (line 1), current util (line 2) and add continuation (line 3)#TODO improve precision
+    #     linear_interp.interp_1d_vec(par.grid_Am,Em[iz,:],resm.copy() - cm[iz,:],Emt[iz,:])
+    #     linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_cpriv_s,cm[iz,:],cmp[iz,:])
+    #     vm[iz,:]=usr.util(cmp[iz,:],cm[iz,:]-cmp[iz,:],*pars)+par.β*Emt[iz,:]
             
         
 #################################################
