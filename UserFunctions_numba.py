@@ -21,7 +21,7 @@ def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
 @njit(cache=cache)
 def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
-    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love+couple*3.25#+(1.0-ishom)*1000#
+    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love
 
 @njit(cache=cache) 
 def resources_couple(t,assets,izw,izm,par,wlp=1):    
@@ -298,7 +298,7 @@ def create(ufunc):
     """
 
     @njit
-    def upperenvelope(grid_a,m_vec,c_vec,inv_w_vec_w,inv_w_vec_m,power,grid_m,c_ast_vec,v_ast_vec_w,v_ast_vec_m,*args):
+    def upperenvelope(grid_a,m_vec,c_vec,inv_w_vec_w,inv_w_vec_m,power,grid_m,c_ast_vec,v_ast_vec_w,v_ast_vec_m,v_ast_vec_c,*args):
         """ upperenvelope function
         
         Args:
@@ -340,6 +340,7 @@ def create(ufunc):
             v_ast_vec_m[im] = u_m[0] + inv_w_vec_m[0] 
  
             v_ast_vec[im] = power*v_ast_vec_w[im] + (1.0-power)*v_ast_vec_m[im] 
+            v_ast_vec_c[im] = v_ast_vec[im]
             im += 1 
             
         # upper envellope
@@ -407,6 +408,7 @@ def create(ufunc):
                         
                         # update utility for the couple
                         v_ast_vec_w[im] = v_guess_w
-                        v_ast_vec_m[im] = v_guess_m
+                        v_ast_vec_m[im] = v_guess_m                      
+                        v_ast_vec_c[im]=power*v_ast_vec_w[im]+(1.0-power)*v_ast_vec_m[im]
     
     return upperenvelope

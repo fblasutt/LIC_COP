@@ -15,26 +15,10 @@ woman=setup.woman;man=setup.man
 
 class HouseholdModelClass(EconModelClass):
     
-    def settings(self):
-        """ fundamental settings """
-
-        # a. namespaces
-        self.namespaces = []
-        
-        # b. other attributes
-        self.other_attrs = []
-        
-        # c. savefolder
-        self.savefolder = 'saved'
-        
-        # d. cpp
-        self.cpp_filename = 'cppfuncs/solve.cpp'
-        self.cpp_options = {'compiler':'vs'}
-        
-        
+    def settings(self):self.namespaces = []#needed to make class work, otherwise useless
+                   
     def setup(self):
         par = self.par
-        
         
         par.EGM = True# Want to use the EGM method to solve the model?
         #Note: to get EGM vs. vfi equivalence max assets should be VERY large
@@ -92,14 +76,11 @@ class HouseholdModelClass(EconModelClass):
         par.seed = 9210;par.simT = par.T;par.simN = 20_000
         
     def allocate(self):
-        par = self.par
-        sol = self.sol
-        sim = self.sim
+        par = self.par;sol = self.sol;sim = self.sim;self.setup_grids()
 
         # setup grids
         par.simT = par.T
-        self.setup_grids()
-        
+         
         # singles: value functions (vf), consumption, marg util
         shape_singlew = (par.T,par.num_zw,par.num_A)
         shape_singlem = (par.T,par.num_zm,par.num_A)
@@ -180,7 +161,7 @@ class HouseholdModelClass(EconModelClass):
         par.grid_Am = (1.0 - par.div_A_share) * par.grid_A
 
         # bargaining power. non-linear grid with more mass in both tails.        
-        par.grid_power = np.linspace(0.01,0.99,par.num_power)#usr.grid_fat_tails(0.01,0.99,par.num_power)#
+        par.grid_power = usr.grid_fat_tails(0.01,0.99,par.num_power)
 
         # love grid and shock
         if par.num_love>1:par.grid_love = np.linspace(-par.max_love,par.max_love,par.num_love)           
@@ -242,9 +223,9 @@ class HouseholdModelClass(EconModelClass):
             simulate_lifecycle(sim,sol,par)
             
   
-########################################
-# INTRAPERIOD OPTIMIZATION FOR COUPLES #
-########################################
+####################################################
+# INTRAPERIOD OPTIMIZATION FOR SINGLES AND COUPLES #
+####################################################
 @njit(parallel=parallel)
 def solve_intraperiod(sol,par):
         
@@ -264,9 +245,9 @@ def solve_intraperiod(sol,par):
         
         # compute numerical derivative of vf of singles over total consumption
         share_p=grid_cpriv_s[i]/C_tot
-        forward  =    usr.util(share_p*(C_tot+ϵ),(1.0-share_p)*(C_tot+ϵ),*pars)#-usr.optimizer(minus_util_s,1.0e-8, C_tot+ϵ-1.0e-8,args=(C_tot+ϵ,pars))[1]
-        backward =    usr.util(share_p*(C_tot-ϵ),(1.0-share_p)*(C_tot-ϵ),*pars)#-usr.optimizer(minus_util_s,1.0e-8, C_tot-ϵ-1.0e-8,args=(C_tot-ϵ,pars))[1]
-        grid_marg_u_s[i] = (forward - backward)/(2*ϵ)#usr.marg_util(C_tot,*pars)#
+        forward  =    usr.util(share_p*(C_tot+ϵ),(1.0-share_p)*(C_tot+ϵ),*pars)
+        backward =    usr.util(share_p*(C_tot-ϵ),(1.0-share_p)*(C_tot-ϵ),*pars)
+        grid_marg_u_s[i] = (forward - backward)/(2*ϵ)
 
         
     ################ Couples part ##########################  
@@ -295,8 +276,8 @@ def solve_intraperiod(sol,par):
                 power=par.grid_power[iP]
                 res.x[0]=Cw_priv[iwlp,iP,i];res.x[1]=Cm_priv[iwlp,iP,i] 
                 # get individual derivative using envelope theorem: share of private/public C doesnt change
-                _,forward_w,  forward_m  =usr.couple_util(res.x/(C_tot)*(C_tot+ϵ),C_tot+ϵ,power,1.0-wlp,*pars)# usr.couple_time_utility(C_tot+ϵ,par,sol,iP,iwlp,power,0.0,pars)#
-                _,backward_w, backward_m = usr.couple_util(res.x/(C_tot)*(C_tot-ϵ),C_tot-ϵ,power,1.0-wlp,*pars)#usr.couple_time_utility(C_tot-ϵ,par,sol,iP,iwlp,power,0.0,pars)#
+                _,forward_w,  forward_m  =usr.couple_util(res.x/(C_tot)*(C_tot+ϵ),C_tot+ϵ,power,1.0-wlp,*pars)
+                _,backward_w, backward_m = usr.couple_util(res.x/(C_tot)*(C_tot-ϵ),C_tot-ϵ,power,1.0-wlp,*pars)
                 grid_marg_uw[iwlp,iP,i] = (forward_w - backward_w)/(2*ϵ) 
                 grid_marg_um[iwlp,iP,i] = (forward_m - backward_m)/(2*ϵ) 
                 
@@ -311,7 +292,7 @@ def solve_intraperiod(sol,par):
 
 @njit(parallel=parallel)
 def integrate_single(sol,par,t):
-    Ew,Ewd=np.ones((2,par.num_zw,par.num_A));Em,Emd=np.ones((2,par.num_zm,par.num_A)) 
+    Ew=np.ones((par.num_zw,par.num_A));Em=np.ones((par.num_zm,par.num_A)) 
     
     for iA in prange(par.num_A):Ew[:,iA]  = sol.Vw_single[t+1,:,iA].flatten() @ par.Π_zw[t] 
     for iA in prange(par.num_A):Em[:,iA]  = sol.Vm_single[t+1,:,iA].flatten() @ par.Π_zm[t]
@@ -321,10 +302,9 @@ def integrate_single(sol,par,t):
 @njit(parallel=parallel)
 def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
 
-    #Integrate to get continuation value...
+    #Integrate to get continuation value unless if you are in the last period
     if t<par.T-1:Ew,Em = integrate_single(sol,par,t)
-    else:#...unless if you are in the last period
-        Ew= np.zeros((par.num_zw,par.num_A));Em= np.zeros((par.num_zm,par.num_A))
+    else:Ew= np.zeros((par.num_zw,par.num_A));Em= np.zeros((par.num_zm,par.num_A))
              
     #Pre-define outcomes (if update .sol directly, parallelization go crazy)
     vw=sol.Vw_single[t,:,:];vm=sol.Vm_single[t,:,:]
@@ -340,11 +320,11 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
             if t==(par.T-1): ci[iz,:] = resi.copy() #consume all resources
             else: #before T-1 make consumption saving choices
                 
-                # marginal utility next period
+                # marginal utility of assets next period
                 βEid=par.β*usr.deriv(grid_Ai,Ei[iz,:])
                 
                 # first get toatl -consumption out of grid using FOCs
-                linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEid,cwt[iz,:])
+                linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEid,cit[iz,:])
                 
                 # use budget constraint to get current resources
                 Ai_now = (grid_Ai.flatten() + cit[iz,:] - grid_zi[t,iz])/par.R
@@ -362,63 +342,7 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
         
     loop_savings_singles(par,par.num_zw,par.grid_zw,par.grid_Aw,cw,Ew,cwt,Ewt,cwp,vw)#women savings
     loop_savings_singles(par,par.num_zm,par.grid_zm,par.grid_Am,cm,Em,cmt,Emt,cmp,vm)#men   savings
-        
-    # # Women
-    # for iz in prange(par.num_zw):
-
-    #     resw = (par.R*par.grid_Aw + par.grid_zw[t,iz])#*0.0000001
-    #     if t==(par.T-1): cw[iz,:] = resw.copy() #consume all resources
-    #     else: #before T-1 make consumption saving choices
-            
-    #         # marginal utility next period
-    #         βEwd=par.β*usr.deriv(par.grid_Aw,Ew[iz,:])
-            
-    #         # first get toatl -consumption out of grid using FOCs
-    #         linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEwd,cwt[iz,:])
-            
-    #         # use budget constraint to get current resources
-    #         Aw_now = (par.grid_Aw.flatten() + cwt[iz,:] - par.grid_zw[t,iz])/par.R
-            
-    #         # now interpolate onto common beginning-of-period asset grid to get consumption
-    #         linear_interp.interp_1d_vec(Aw_now,cwt[iz,:],par.grid_Aw,cw[iz,:])
-            
-    #         # get consumption (+make sure that the no-borrowing constraint is respected)
-    #         cw[iz,:] = np.minimum(cw[iz,:], resw.copy())       
-            
-    #     # get utility: interpolate Exp value (line 1), current util (line 2) and add continuation (line 3)#TODO improve precision
-    #     linear_interp.interp_1d_vec(par.grid_Aw,Ew[iz,:], resw.copy()-cw[iz,:],Ewt[iz,:])
-    #     linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_cpriv_s,cw[iz,:],cwp[iz,:])
-    #     vw[iz,:]=usr.util(cwp[iz,:],cw[iz,:]-cwp[iz,:],*pars)+par.β*Ewt[iz,:]
-        
-       
-        
-    # # Men
-    # for iz in prange(par.num_zm):
-
-    #     resm = (par.R*par.grid_Am + par.grid_zm[t,iz])#*0.0000001
-    #     if t==(par.T-1): cm[iz,:] = resm.copy() #consume all resources
-    #     else: #before T-1 make consumption saving choices
-            
-    #         # marginal utility next period
-    #         βEmd=par.β*usr.deriv(par.grid_Am,Em[iz,:])
-            
-    #         # first get total consumption out of grid using FOCs
-    #         linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEmd,cmt[iz,:])
-            
-    #         # use budget constraint to get current resources
-    #         Am_now = (par.grid_Am.flatten() + cmt[iz,:] - par.grid_zm[t,iz])/par.R
-            
-    #         # now interpolate onto common beginning-of-period asset grid to get consumption
-    #         linear_interp.interp_1d_vec(Am_now,cwt[iz,:],par.grid_Am,cm[iz,:])
-            
-    #         # get consumption (+make sure that the no-borrowing constraint is respected)
-    #         cm[iz,:] = np.minimum(cm[iz,:], resm.copy())
-            
-    #     # get utility: interpolate Exp value (line 1), current util (line 2) and add continuation (line 3)#TODO improve precision
-    #     linear_interp.interp_1d_vec(par.grid_Am,Em[iz,:],resm.copy() - cm[iz,:],Emt[iz,:])
-    #     linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_cpriv_s,cm[iz,:],cmp[iz,:])
-    #     vm[iz,:]=usr.util(cmp[iz,:],cm[iz,:]-cmp[iz,:],*pars)+par.β*Emt[iz,:]
-            
+                 
         
 #################################################
 # SOLUTION - COUPLES
@@ -473,18 +397,16 @@ def solve_remain_couple_egm(par,sol,t):
     if t<(par.T-1): EVw, EVm = integrate_couple(par,sol,t)
  
     # initialize 
-    Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wlp,Vwd,Vmd,wgt_w,wgt_m,wgt_w_p,wgt_m_p,wgt_w_n,wgt_m_n\
-        =np.zeros((17,par.num_z,par.num_love,par.num_A,par.num_power)) 
-    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)    
-    cw,cm = sol.Cw_tot_single[t],sol.Cm_tot_single[t] 
+    Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_Vc,n_Vc,p_C_tot,n_C_tot,wlp\
+        =np.zeros((11,par.num_z,par.num_love,par.num_A,par.num_power)) 
+    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)     
     for iL in prange(par.num_love): 
         for iP in range(par.num_power):            
             for iz in range(par.num_z):  
                 
                 # indexes
-                izw=iz//par.num_zm;izm=iz%par.num_zw;idz=(iz,iL,iP)
+                izw=iz//par.num_zm;izm=iz%par.num_zw;idz=(iz,iL,iP);idx=(iz,iL,slice(None),iP)
                 love=par.grid_love[iL];power = par.grid_power[iP]
-                idx=(iz,iL,slice(None),iP)#; I=lambda a: (iz,iL,a,iP)
                 
                 # resources if participation (p_) or no participation (_n)
                 p_res=usr.resources_couple(t,par.grid_A,izw,izm,par,wlp=1) 
@@ -496,53 +418,36 @@ def solve_remain_couple_egm(par,sol,t):
                     #Get consumption then utilities (assume no labor participation). Note: no savings!
                     Vw[idx],Vm[idx]=usr.couple_time_utility(n_res,par,sol,iP,0,love,pars)            
                     wlp[idx]=0.0;p_Vm[idx]=p_Vw[idx]=-1e10;n_Vw[idx],n_Vm[idx]=Vw[idx],Vm[idx];n_C_tot[idx] = n_res.copy() 
-                    
-                    
+                                        
                 else:#periods before the last 
                              
-                    # compute optimal consumption and utility given partecipation (0/1).
-                    # the last 3 arguments of fun below are the output at iz,iL,iP
-                    compute_couple(par,sol,iP,idx,idz,love,power,pars,EVw,EVm,1,p_res,p_C_tot,p_Vw,p_Vm) # participation 
-                    compute_couple(par,sol,iP,idx,idz,love,power,pars,EVw,EVm,0,n_res,n_C_tot,n_Vw,n_Vm) # no participation 
-                    if (t>=par.Tr):p_Vw[idx]=p_Vm[idx]=-1e10 # before retirement no labor participation 
-                    
-                    # compute participation choices below
-                    p_Vwd, n_Vwd,p_Vmd, n_Vmd = np.ones((4,par.num_A))
-                    p_v_couple = power*p_Vw[idx]+(1.0-power)*p_Vm[idx]
-                    n_v_couple = power*n_Vw[idx]+(1.0-power)*n_Vm[idx]
-                                                   
-                    # get the probabilit of workin wlp, based on couple utility choices
-                    c=np.maximum(p_v_couple,n_v_couple)/par.σ # constant to avoid overflow
-                    v_couple=par.σ*(c+np.log(np.exp(p_v_couple/par.σ-c)+np.exp(n_v_couple/par.σ-c)))
-                    wlp[iz,iL,:,iP]=np.exp(p_v_couple/par.σ-v_couple/par.σ)
-                    
-                    # now the value of making the choice: see Shepard (2019), page 11
-                    Δp=p_Vw[idx]-p_Vm[idx];Δn=n_Vw[idx]-n_Vm[idx]
-                    Vw[idx]=v_couple+(1.0-par.grid_power[iP])*(wlp[idx]*Δp+(1.0-wlp[idx])*Δn)
-                    Vm[idx]=v_couple+(-par.grid_power[iP])   *(wlp[idx]*Δp+(1.0-wlp[idx])*Δn)
- 
-                    
-    return (Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wlp,Vwd,Vmd,wgt_w,wgt_m) # return a tuple
- 
+                    # compute consumption* and util given partecipation (0/1). last 4 arguments below are output at iz,iL,iP
+                    compute_couple(par,sol,iP,idx,idz,love,power,pars,EVw,EVm,1,p_res,p_C_tot,p_Vw,p_Vm,p_Vc) # participation 
+                    compute_couple(par,sol,iP,idx,idz,love,power,pars,EVw,EVm,0,n_res,n_C_tot,n_Vw,n_Vm,n_Vc) # no participation 
+                    if (t>=par.Tr):p_Vw[idx]=p_Vm[idx]=p_Vc[idx]=-1e10 # before retirement no labor participation 
+                                               
+                    # compute the Pr. of of labor part. (wlp) + before-taste-shock util Vw and Vm
+                    before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm)
+                                       
+    return (Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wlp) # return a tuple
+       
 @njit    
-def compute_couple(par,sol,iP,idx,idz,love,power,pars2,EVw,EVm,part,res,C_tot,Vw,Vm): 
+def compute_couple(par,sol,iP,idx,idz,love,power,pars2,EVw,EVm,part,res,C_tot,Vw,Vm,Vc): 
  
     # initialization 
     C_pd,βEw,βEm,Vwd,Vmd,_= np.ones((6,par.num_A));pars=(par,sol,iP,part,love,pars2)        
          
-    
+    # discounted expected marginal utility from t+1, wrt assets
     βEVd=par.β*usr.deriv(par.grid_A,power*EVw[idz]+(1.0-power)*EVm[idz])
 
     # get consumption out of grid using FOCs (i) + use budget constraint to get current resources (ii)  
     linear_interp.interp_1d_vec(par.grid_marg_u_for_inv[part,iP,:],par.grid_inv_marg_u,βEVd,C_pd) #(i) 
     A_now =  par.grid_A.flatten() + C_pd                                                         #(ii) 
  
-
     if 1>0:#np.any(np.diff(A_now)<0):#apply upperenvelope + enforce no borrowing constraint 
  
-        upper_envelope(par.grid_A,A_now,C_pd,par.β*EVw[idz],par.β*EVm[idz],power,res, 
-                       C_tot[idx],Vw[idx],Vm[idx],*pars) 
-        
+        upper_envelope(par.grid_A,A_now,C_pd,par.β*EVw[idz],par.β*EVm[idz],power,res,C_tot[idx],Vw[idx],Vm[idx],Vc[idx],*pars) 
+        #Vc[idx]=power*Vw[idx]+(1.0-power)*Vm[idx]
     else:#upperenvelope not necessary: enforce no borrowing constraint 
      
         # interpolate onto common beginning-of-period asset grid to get consumption 
@@ -557,10 +462,24 @@ def compute_couple(par,sol,iP,idx,idz,love,power,pars2,EVw,EVm,part,res,C_tot,Vw
         linear_interp.interp_1d_vec(par.grid_A,par.β*EVm[idz],res-C_tot[idx],βEm)     
         Vw[idx] = usr.util(Cw_priv,C_pub,*pars2,love,True,1.0-par.grid_wlp[part])+βEw                         
         Vm[idx] = usr.util(Cm_priv,C_pub,*pars2,love,True,1.0-par.grid_wlp[part])+βEm 
-        
+        Vc[idx] = power*Vw[idx]+(1.0-power)*Vm[idx]
        
+@njit
+def before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm):
+ 
+    iz=idx[0];iL=idx[1];iP=idx[3]
+    # get the probabilit of workin wlp, based on couple utility choices
+    c=np.maximum(p_Vc[idx],n_Vc[idx])/par.σ # constant to avoid overflow
+    v_couple=par.σ*(c+np.log(np.exp(p_Vc[idx]/par.σ-c)+np.exp(n_Vc[idx]/par.σ-c)))
+    wlp[iz,iL,:,iP]=np.exp(p_Vc[idx]/par.σ-v_couple/par.σ)
+    
+    # now the value of making the choice: see Shepard (2019), page 11
+    Δp=p_Vw[idx]-p_Vm[idx];Δn=n_Vw[idx]-n_Vm[idx]
+    Vw[idx]=v_couple+(1.0-par.grid_power[iP])*(wlp[idx]*Δp+(1.0-wlp[idx])*Δn)
+    Vm[idx]=v_couple+(-par.grid_power[iP])   *(wlp[idx]*Δp+(1.0-wlp[idx])*Δn) 
+    
 @njit(parallel=parallel)
-def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp,remain_Vwd,remain_Vmd,wgt_w,wgt_m,par,sol,t):
+def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp,par,sol,t):
  
     power_idx=sol.power_idx
     power=sol.power
@@ -571,8 +490,7 @@ def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,
                
                 # check the participation constraints
                 idx_single_w = (t,iz//par.num_zm,iA);idx_single_m = (t,iz%par.num_zw,iA);idd=(iz,iL,iA)
-     
-                
+             
                 list_couple = (sol.Vw_couple, sol.Vm_couple)#list_start_as_couple
                 list_raw    = (remain_Vw[idd],remain_Vm[idd])#list_remain_couple
                 list_single = (sol.Vw_single,sol.Vm_single) # list_trans_to_single: last input here not important in case of divorce
@@ -723,7 +641,6 @@ def check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,
 @njit(parallel=parallel)
 def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continuous...
     
-
     # unpacking some values to help numba optimize
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)#single
     A=sim.A;Aw=sim.Aw; Am=sim.Am;Cw_priv=sim.Cw_priv;Cw_pub=sim.Cw_pub;Cm_priv=sim.Cm_priv;Cm_pub=sim.Cm_pub
@@ -777,8 +694,7 @@ def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continu
 
                 else:
                     # value of partnerhip for all levels of power
-                    Vw_couple = np.zeros(par.num_power)
-                    Vm_couple = np.zeros(par.num_power)
+                    Vw_couple, Vm_couple = np.zeros((2,par.num_power))
                     for iP in range(par.num_power):
                         Vw_couple[iP] = linear_interp.interp_2d(par.grid_love,par.grid_A,sol.Vw_remain_couple[t,iz_w,iP],love[i,t],A_lag)
                         Vm_couple[iP] = linear_interp.interp_2d(par.grid_love,par.grid_A,sol.Vm_remain_couple[t,iz_m,iP],love[i,t],A_lag)

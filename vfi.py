@@ -171,7 +171,7 @@ def solve_remain_couple(par,sol,t):
 
         
     # return objects 
-    return (remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp, np.ones(remain_Vw.shape), np.ones(remain_Vm.shape),wgt_w,wgt_m)
+    return (remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp)
 
 @njit#this should be parallelized, but it's tricky... 
 def integrate(par,sol,t): 
