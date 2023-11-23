@@ -51,7 +51,7 @@ class HouseholdModelClass(EconModelClass):
         par.Tr = 6 # age at retirement
         
         # wealth
-        par.num_A = 20;par.max_A = 2.0
+        par.num_A = 20;par.max_A = 10.0
         
         # bargaining power
         par.num_power = 15
@@ -70,7 +70,7 @@ class HouseholdModelClass(EconModelClass):
         par.σzw=0.0001;par.σ0zw=0.00005;par.σzm=0.0001;par.σ0zm=0.00005
         
         # pre-computation fo consumption
-        par.num_Ctot = 500;par.max_Ctot = par.max_A
+        par.num_Ctot = 100;par.max_Ctot = par.max_A
         
         # simulation
         par.seed = 9210;par.simT = par.T;par.simN = 20_000
@@ -88,7 +88,6 @@ class HouseholdModelClass(EconModelClass):
         sol.Vm_single = np.nan + np.ones(shape_singlem) #vf in t
         sol.Cw_tot_single = np.nan + np.ones(shape_singlew) #priv+tot cons
         sol.Cm_tot_single = np.nan + np.ones(shape_singlem) #priv+tot cons
-
 
         # couples: value functions (vf), consumption, marg util, bargaining power
         shape_couple = (par.T,par.num_z,par.num_power,par.num_love,par.num_A) # 2 is for men/women
@@ -151,7 +150,6 @@ class HouseholdModelClass(EconModelClass):
         sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2#w's initial income 
         sim.init_zm = np.ones(par.simN,dtype=np.int_)*par.num_zm//2#m's initial income
         
-
     def setup_grids(self):
         par = self.par
         
@@ -221,71 +219,56 @@ class HouseholdModelClass(EconModelClass):
             
             #Call routing performing the simulation
             simulate_lifecycle(sim,sol,par)
-            
-  
+             
 ####################################################
 # INTRAPERIOD OPTIMIZATION FOR SINGLES AND COUPLES #
 ####################################################
 @njit(parallel=parallel)
 def solve_intraperiod(sol,par):
         
-    
     # unpack to help numba (horrible)
     C_pub,  Cw_priv, Cm_priv, grid_marg_u, grid_marg_u_for_inv, grid_marg_u_s, grid_cpriv_s, grid_marg_uw, grid_marg_um =\
         sol.pre_Ctot_C_pub, sol.pre_Ctot_Cw_priv, sol.pre_Ctot_Cm_priv, par.grid_marg_u, par.grid_marg_u_for_inv, par.grid_marg_u_s,\
         par.grid_cpriv_s, par.grid_marg_uw, par.grid_marg_um
+        
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)  
     ϵ = 1e-8# delta increase in xs to compute numerical deratives
 
     ################ Singles part #####################
-    minus_util_s = lambda x,resources,pars:-usr.util(x,resources-x,*pars)
     for i,C_tot in enumerate(par.grid_Ctot):
-        # get util from *total consumption=priv+public*  and the numerical derivative
-        grid_cpriv_s[i] = usr.optimizer(minus_util_s,1.0e-8, C_tot-1.0e-8,args=(C_tot,pars))[0]
         
-        # compute numerical derivative of vf of singles over total consumption
-        share_p=grid_cpriv_s[i]/C_tot
-        forward  =    usr.util(share_p*(C_tot+ϵ),(1.0-share_p)*(C_tot+ϵ),*pars)
-        backward =    usr.util(share_p*(C_tot-ϵ),(1.0-share_p)*(C_tot-ϵ),*pars)
+        # optimize to get util from total consumption(m<->C_tot)=private cons(c)+public cons(m-c)
+        grid_cpriv_s[i] = usr.optimizer(lambda c,m,p:-usr.util(c,m-c,*p),ϵ,C_tot-ϵ,args=(C_tot,pars))[0]
+        
+        # numerical derivative of util wrt total consumption C_tot, using envelope thm
+        share_priv=grid_cpriv_s[i]/C_tot
+        forward  = usr.util(share_priv*(C_tot+ϵ),(1.0-share_priv)*(C_tot+ϵ),*pars)
+        backward = usr.util(share_priv*(C_tot-ϵ),(1.0-share_priv)*(C_tot-ϵ),*pars)
         grid_marg_u_s[i] = (forward - backward)/(2*ϵ)
-
+  
+    ################ Couples part ##########################   
+    icon=np.array([0.33,0.33])#initial condition, to be overwritten 
+    for iP in prange(par.num_power):      
+        for iwlp,wlp in enumerate(par.grid_wlp): 
+            for i,C_tot in enumerate(par.grid_Ctot): 
+                 
+                # initialize bounds and bargaining power 
+                bounds=np.array([[0.0,C_tot],[0.0,C_tot]]);power=par.grid_power[iP] 
+                 
+                # estimate optima private and public cons, unpack, update initial condition
+                res = nelder_mead(lambda c,p:usr.couple_util(c,*p)[0],icon*C_tot,bounds=bounds,args=((C_tot,power,1.0-wlp,*pars),)) 
+                Cw_priv[iwlp,iP,i]= res.x[0];Cm_priv[iwlp,iP,i]= res.x[1];C_pub[iwlp,iP,i] = C_tot - res.x.sum()             
+                icon=res.x/C_tot if i<par.num_Ctot-1 else np.array([0.33,0.33]) 
+       
+                # numerical derivative of util wrt total consumption C_tot, using envelope thm 
+                _,forw_w,forw_m = usr.couple_util(res.x/(C_tot)*(C_tot+ϵ),C_tot+ϵ,power,1.0-wlp,*pars) 
+                _,bakw_w,bakw_m = usr.couple_util(res.x/(C_tot)*(C_tot-ϵ),C_tot-ϵ,power,1.0-wlp,*pars) 
+                grid_marg_uw[iwlp,iP,i] = (forw_w - bakw_w)/(2*ϵ);grid_marg_um[iwlp,iP,i] = (forw_m - bakw_m)/(2*ϵ)
+                                  
+            #Create grid of couple's marginal util and inverse marginal utility  
+            grid_marg_u[iwlp,iP,:] = power*grid_marg_uw[iwlp,iP,:]+(1.0-power)*grid_marg_um[iwlp,iP,:] 
+            grid_marg_u_for_inv[iwlp,iP,:]=np.flip(par.grid_marg_u[iwlp,iP,:])   
         
-    ################ Couples part ##########################  
-    couples_util=lambda cp, prs: usr.couple_util(cp,*prs)[0]#fun to maximize
-    ini_cond=np.array([0.33,0.33])#initial condition, to be overwritten
-    for iP in prange(par.num_power):     
-        for iwlp,wlp in enumerate(par.grid_wlp):
-            for i,C_tot in enumerate(par.grid_Ctot):
-                
-                # initialize bounds and bargaining power
-                bounds=np.array([[0.0,C_tot],[0.0,C_tot]]);power=par.grid_power[iP]
-                
-                # estimate
-                res = nelder_mead(couples_util,ini_cond*C_tot,bounds=bounds,args=((C_tot,power,1.0-wlp,*pars),))
-
-                # unpack
-                Cw_priv[iwlp,iP,i]= res.x[0];Cm_priv[iwlp,iP,i]= res.x[1]  
-                C_pub[iwlp,iP,i] = C_tot - Cw_priv[iwlp,iP,i] - Cm_priv[iwlp,iP,i]
-                
-                # update initial conidtion
-                ini_cond=res.x/C_tot if i<par.num_Ctot-1 else np.array([0.33,0.33])
-      
-    for iP in prange(par.num_power):     
-        for iwlp,wlp in enumerate(par.grid_wlp):
-            for i,C_tot in enumerate(par.grid_Ctot):
-                power=par.grid_power[iP]
-                res.x[0]=Cw_priv[iwlp,iP,i];res.x[1]=Cm_priv[iwlp,iP,i] 
-                # get individual derivative using envelope theorem: share of private/public C doesnt change
-                _,forward_w,  forward_m  =usr.couple_util(res.x/(C_tot)*(C_tot+ϵ),C_tot+ϵ,power,1.0-wlp,*pars)
-                _,backward_w, backward_m = usr.couple_util(res.x/(C_tot)*(C_tot-ϵ),C_tot-ϵ,power,1.0-wlp,*pars)
-                grid_marg_uw[iwlp,iP,i] = (forward_w - backward_w)/(2*ϵ) 
-                grid_marg_um[iwlp,iP,i] = (forward_m - backward_m)/(2*ϵ) 
-                
-            #Create grid of couple's marginal util and inverse marginal utility 
-            grid_marg_u[iwlp,iP,:] = power*grid_marg_uw[iwlp,iP,:]+(1.0-power)*grid_marg_um[iwlp,iP,:]
-            grid_marg_u_for_inv[iwlp,iP,:]=np.flip(par.grid_marg_u[iwlp,iP,:])    
-        
-
 #######################
 # SOLUTIONS - SINGLES #
 #######################
@@ -444,10 +427,10 @@ def compute_couple(par,sol,iP,idx,idz,love,power,pars2,EVw,EVm,part,res,C_tot,Vw
     linear_interp.interp_1d_vec(par.grid_marg_u_for_inv[part,iP,:],par.grid_inv_marg_u,βEVd,C_pd) #(i) 
     A_now =  par.grid_A.flatten() + C_pd                                                         #(ii) 
  
-    if 1>0:#np.any(np.diff(A_now)<0):#apply upperenvelope + enforce no borrowing constraint 
+    if np.any(np.diff(A_now)<0):#apply upperenvelope + enforce no borrowing constraint 
  
         upper_envelope(par.grid_A,A_now,C_pd,par.β*EVw[idz],par.β*EVm[idz],power,res,C_tot[idx],Vw[idx],Vm[idx],Vc[idx],*pars) 
-        #Vc[idx]=power*Vw[idx]+(1.0-power)*Vm[idx]
+        
     else:#upperenvelope not necessary: enforce no borrowing constraint 
      
         # interpolate onto common beginning-of-period asset grid to get consumption 

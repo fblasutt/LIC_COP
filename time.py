@@ -16,7 +16,7 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
 # create the model
-specs = {'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.0,'T':20,'Tr':2*20//3,'num_love':3}}}
+specs = {'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'sigma_love':0.3,'T':20,'Tr':2*20//3,'num_love':11}}}
 modelj = brgj.HouseholdModelClass(name='model_1',par=specs['model 1']['par'])
 
 

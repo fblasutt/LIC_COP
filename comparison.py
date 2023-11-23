@@ -17,7 +17,7 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 T = 4
 specs = {
     'model 1':{'latexname':'EGM', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":35,"EGM":True}},
-    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":35,"EGM":False}},
+    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":35,"EGM":True}},
 }
 
 # solve different models (takes several minutes)
