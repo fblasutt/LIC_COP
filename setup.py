@@ -2,7 +2,7 @@
 #Setup configuration and global variables
 ########################################
 
-parallel=False
+parallel=True
 nojit=False
 cache=False
 woman = 1

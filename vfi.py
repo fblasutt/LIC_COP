@@ -97,7 +97,7 @@ def solve_remain_couple(par,sol,t):
     if t<(par.T-1): EVw, EVm = integrate(par,sol,t)  
  
     # initialize 
-    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp,wgt_w,wgt_m = np.ones((11,par.num_z,par.num_love,par.num_A,par.num_power)) 
+    remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot,remain_wlp,wgt_w,wgt_m = np.ones((11,par.num_z,par.num_power,par.num_love,par.num_A)) 
 
     #parameters: useful to unpack this to improve speed 
     couple=1.0;ishome=1.0#;k=par.interp
@@ -114,12 +114,12 @@ def solve_remain_couple(par,sol,t):
         Vw_plus_vec,Vm_plus_vec=np.ones(par.num_shock_love)+np.nan,np.ones(par.num_shock_love)+np.nan 
         love_next_vec = par.grid_love[iL] + par.grid_shock_love 
         savings_vec = np.ones(par.num_shock_love) 
-         
-        for iA in range(par.num_A): 
-            for iP in range(par.num_power):            
-                for iz in range(par.num_z):             
+        
+        for iz in range(par.num_z):  
+            for iA in range(par.num_A): 
+                for iP in range(par.num_power):  
                     
-                    idx=(iz,iL,iA,iP);izw=iz//par.num_zm;izm=iz%par.num_zw# indexes 
+                    idx=(iz,iP,iL,iA);izw=iz//par.num_zm;izm=iz%par.num_zw# indexes 
                     # if (t==12) & (iP==1) & (iz==4) & (iA==49):
                     #     import matplotlib.pyplot as plt
                     #     remain_Vm[idx,1,1]=3.0          
@@ -136,16 +136,16 @@ def solve_remain_couple(par,sol,t):
                         remain_wlp[idx]=0.0;p_remain_Vm[idx]=p_remain_Vw[idx]=-1e10;n_remain_Vw[idx],n_remain_Vm[idx]=remain_Vw[idx],remain_Vm[idx]
                     else:#periods before the last 
                                  
-                        coeffsW = prefilter(((0.0,par.max_A,par.num_A),), EVw[iz,iL,iP,:],k=3) 
-                        coeffsM = prefilter(((0.0,par.max_A,par.num_A),), EVm[iz,iL,iP,:],k=3)
+                        coeffsW = prefilter(((0.0,par.max_A,par.num_A),), EVw[iz,iP,iL,:],k=3) 
+                        coeffsM = prefilter(((0.0,par.max_A,par.num_A),), EVm[iz,iP,iL,:],k=3)
                          
                         def M_resources(wlp): return usr.resources_couple(t,par.grid_A[iA],izw,izm,par,wlp=wlp)
                         
                         #first find optimal total consumption 
-                        p_args=(iL,par.grid_power[iP],EVw[iz,iL,iP,:],EVm[iz,iL,iP,:],coeffsW,coeffsM, 
+                        p_args=(iL,par.grid_power[iP],EVw[iz,iP,iL,:],EVm[iz,iP,iL,:],coeffsW,coeffsM, 
                               sol.pre_Ctot_Cw_priv[1,iP],sol.pre_Ctot_Cm_priv[1,iP],Vw_plus_vec,Vm_plus_vec,*pars1,love_next_vec,savings_vec)  
                         
-                        n_args=(iL,par.grid_power[iP],EVw[iz,iL,iP,:],EVm[iz,iL,iP,:],coeffsW,coeffsM, 
+                        n_args=(iL,par.grid_power[iP],EVw[iz,iP,iL,:],EVm[iz,iP,iL,:],coeffsW,coeffsM, 
                               sol.pre_Ctot_Cw_priv[0,iP],sol.pre_Ctot_Cm_priv[0,iP],Vw_plus_vec,Vm_plus_vec,*pars1,love_next_vec,savings_vec)  
                         
                         def obj(x,t,M_resources,ishom,*args):#function to minimize (= maximize value of choice) 
@@ -168,39 +168,40 @@ def solve_remain_couple(par,sol,t):
                         Δp=p_remain_Vw[idx]-p_remain_Vm[idx];Δn=n_remain_Vw[idx]-n_remain_Vm[idx]
                         remain_Vw[idx]=v_couple+(1.0-par.grid_power[iP])*(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
                         remain_Vm[idx]=v_couple+(-par.grid_power[iP])   *(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
-
-        
+                        
+                check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp,par,sol,t,iL,iA,iz)      
     # return objects 
     return (remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp)
 
-@njit#this should be parallelized, but it's tricky... 
+
+@njit(parallel=parallel)
 def integrate(par,sol,t): 
      
-    EVw,EVm,pEVw,pEVm= np.ones((4,par.num_z,par.num_love,par.num_power,par.num_A)) 
-    aw,am=np.ones((2,par.num_shock_love)) 
+    EVw,EVm,pEVw,pEVm,pEVdw,pEVdm,EVdw,EVdm=np.ones((8,par.num_z,par.num_power,par.num_love,par.num_A)) 
+    aw,am,adw,adm = np.ones((4,par.num_z,par.num_power,par.num_love,par.num_A,par.num_shock_love)) 
     love_next_vec=np.ones((par.num_love,par.num_shock_love)) 
      
     for iL in range(par.num_love):love_next_vec[iL,:] = par.grid_love[iL] + par.grid_shock_love 
      
-    for iL in range(par.num_love): 
+    #Integrate income shocks
+    for iL in prange(par.num_love): 
         for iP in range(par.num_power):     
             for iA in range(par.num_A): 
-                #for iz in range(par.num_z): 
-                 
-                #Integrate income shocks
-                pEVw[:,iL,iP,iA] = sol.Vw_couple[t+1,:,iP,iL,iA].flatten() @ par.Π[t] 
-                pEVm[:,iL,iP,iA] = sol.Vm_couple[t+1,:,iP,iL,iA].flatten() @ par.Π[t] 
+                id_i=(slice(None),iP,iL,iA);id_ii=(t+1,slice(None),iP,iL,iA)
+                pEVw[id_i] =  sol.Vw_couple[id_ii].flatten() @ par.Π[t] 
+                pEVm[id_i] =  sol.Vm_couple[id_ii].flatten() @ par.Π[t] 
 
-    for iL in range(par.num_love): 
+    #Integrate love shocks
+    for iL in prange(par.num_love): 
         for iP in range(par.num_power):     
             for iA in range(par.num_A): 
                 for iz in range(par.num_z): 
-                    #Integrate love shocks
-                    linear_interp.interp_1d_vec(par.grid_love,pEVw[iz,:,iP,iA],love_next_vec[iL,:],aw) 
-                    linear_interp.interp_1d_vec(par.grid_love,pEVm[iz,:,iP,iA],love_next_vec[iL,:],am)
+                    id_i=(iz,iP,slice(None),iA);id_ii=(iz,iP,iL,iA)
+                    linear_interp.interp_1d_vec(par.grid_love,pEVw[id_i],love_next_vec[iL,:],aw[id_ii]) 
+                    linear_interp.interp_1d_vec(par.grid_love,pEVm[id_i],love_next_vec[iL,:],am[id_ii])
 
-                    EVw[iz,iL,iP,iA]=aw @ par.grid_weight_love 
-                    EVm[iz,iL,iP,iA]=am @ par.grid_weight_love 
+                    EVw[id_ii] =  aw[id_ii].flatten() @ par.grid_weight_love 
+                    EVm[id_ii] =  am[id_ii].flatten() @ par.grid_weight_love 
            
     return EVw,EVm
 
@@ -231,3 +232,132 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
     Vm += β*EVm_plus  
        
     return power*Vw + (1.0-power)*Vm, Vw,Vm
+
+@njit
+def check_participation_constraints(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot, wlp,par,sol,t,iL,iA,iz):
+ 
+    power_idx=sol.power_idx
+    power=sol.power
+                  
+    # check the participation constraints
+    idx_single_w = (t,iz//par.num_zm,iA);idx_single_m = (t,iz%par.num_zw,iA);idd=(iz,slice(None),iL,iA)
+ 
+    list_couple = (sol.Vw_couple, sol.Vm_couple)#list_start_as_couple
+    list_raw    = (Vw[idd],Vm[idd])#list_couple
+    list_single = (sol.Vw_single,sol.Vm_single) # list_trans_to_single: last input here not important in case of divorce
+    list_single_w = (True,False) # list that say whether list_single[i] is about w (as oppoesd to m)
+    
+    Sw = Vw[iz,:,iL,iA] - sol.Vw_single[idx_single_w] 
+    Sm = Vm[iz,:,iL,iA] - sol.Vm_single[idx_single_m] 
+                
+    # check the participation constraints. Array
+    min_Sw = np.min(Sw);min_Sm = np.min(Sm)
+    max_Sw = np.max(Sw);max_Sm = np.max(Sm) 
+
+    if (min_Sw >= 0.0) & (min_Sm >= 0.0): # all values are consistent with marriage
+        for iP in range(par.num_power):
+
+            # overwrite output for couple
+            idx = (t,iz,iP,iL,iA)
+            for i,key in enumerate(list_couple): list_couple[i][idx] = list_raw[i][iP]
+            power_idx[idx] = iP;power[idx] = par.grid_power[iP]
+            
+
+    elif (max_Sw < 0.0) | (max_Sm < 0.0): # no value is consistent with marriage
+        for iP in range(par.num_power):
+
+            # overwrite output for couple
+            idx = (t,iz,iP,iL,iA)
+            for i,key in enumerate(list_couple):
+                if list_single_w[i]: list_couple[i][idx] = list_single[i][idx_single_w]
+                else:                list_couple[i][idx] = list_single[i][idx_single_m]
+
+            power_idx[idx] = -1;power[idx] = -1.0
+            
+
+    else: 
+    
+        # find lowest (highest) value with positive surplus for women (men)
+        Low_w = 1 #0 # in case there is no crossing, this will be the correct value
+        Low_m = par.num_power-1-1 #par.num_power-1 # in case there is no crossing, this will be the correct value
+        for iP in range(par.num_power-1):
+            if (Sw[iP]<0) & (Sw[iP+1]>=0):
+                Low_w = iP+1
+                
+            if (Sm[iP]>=0) & (Sm[iP+1]<0):
+                Low_m = iP
+
+        # b. interpolate the surplus of each member at indifference points
+        # women indifference
+        id = Low_w-1
+        denom = (par.grid_power[id+1] - par.grid_power[id])
+        ratio_w = (Sw[id+1] - Sw[id])/denom
+        ratio_m = (Sm[id+1] - Sm[id])/denom
+        power_at_zero_w = par.grid_power[id] - Sw[id]/ratio_w
+        Sm_at_zero_w = Sm[id] + ratio_m*( power_at_zero_w - par.grid_power[id] )
+
+        # men indifference
+        id = Low_m
+        denom = (par.grid_power[id+1] - par.grid_power[id])
+        ratio_w = (Sw[id+1] - Sw[id])/denom
+        ratio_m = (Sm[id+1] - Sm[id])/denom
+        power_at_zero_m = par.grid_power[id] - Sm[id]/ratio_m
+        Sw_at_zero_m = Sw[id] + ratio_w*( power_at_zero_m - par.grid_power[id] )
+        
+        # update the outcomes
+        for iP in range(par.num_power):
+
+            # index to store solution for couple 
+            idx = (t,iz,iP,iL,iA)
+    
+            # woman wants to leave
+            if iP<Low_w: 
+                if Sm_at_zero_w > 0: # man happy to shift some bargaining power
+
+                    for i,key in enumerate(list_couple):
+                        if iP==0:
+                            list_couple[i][idx] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_zero_w,Low_w-1) 
+                        else:
+                            list_couple[i][idx] = list_couple[i][(t,iz,0,iL,iA)]; # re-use that the interpolated values are identical
+
+                    power_idx[idx] = Low_w
+                    power[idx] = power_at_zero_w
+                    
+                else: # divorce
+
+                    for i,key in enumerate(list_couple):  
+                        if list_single_w[i]: list_couple[i][idx] = list_single[i][idx_single_w]
+                        else:                list_couple[i][idx] = list_single[i][idx_single_m]
+
+                    power_idx[idx] = -1
+                    power[idx] = -1.0
+                
+            # man wants to leave
+            elif iP>Low_m: 
+                if Sw_at_zero_m > 0: # woman happy to shift some bargaining power
+                    
+                    for i,key in enumerate(list_couple):
+                        if (iP==(Low_m+1)):
+                            list_couple[i][idx] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_zero_m,Low_m) 
+                        else:
+                            list_couple[i][idx] = list_couple[i][(t,iz,Low_m+1,iL,iA)]; # re-use that the interpolated values are identical
+
+                    power_idx[idx] = Low_m
+                    power[idx] = power_at_zero_m
+                    
+                else: # divorce
+
+                    for i,key in enumerate(list_couple):
+                        if list_single_w[i]: list_couple[i][idx] = list_single[i][idx_single_w]  
+                        else:                list_couple[i][idx] = list_single[i][idx_single_m]
+
+                    power_idx[idx] = -1
+                    power[idx] = -1.0
+
+            else: # no-one wants to leave
+
+                for i,key in enumerate(list_couple):
+                    list_couple[i][idx] = list_raw[i][iP]
+
+                power_idx[idx] = iP
+                power[idx] = par.grid_power[iP]
