@@ -337,9 +337,7 @@ def solve_couple(sol,par,t):#Solve the couples's problem, choose EGM of VFI tech
     if par.EGM: tuple_with_outcomes =     solve_remain_couple_egm(par,sol,t)# EGM solution        
     else:       tuple_with_outcomes = vfi.solve_remain_couple(par,sol,t)    # vfi solution
               
-    #Check participation constrints and eventually update policy function and pareto weights
-    #check_participation_constraints(*tuple_with_outcomes,par,sol,t)
-    
+    #Store above outcomes into solution
     store(*tuple_with_outcomes,par,sol,t)
     
     
@@ -377,7 +375,7 @@ def integrate_couple(par,sol,t):
 
 @njit(parallel=parallel) 
 def solve_remain_couple_egm(par,sol,t): 
- 
+               
     #Integration if not last period
     if t<(par.T-1): EVw, EVm = integrate_couple(par,sol,t)
  
@@ -414,6 +412,7 @@ def solve_remain_couple_egm(par,sol,t):
                         # compute the Pr. of of labor part. (wlp) + before-taste-shock util Vw and Vm
                         before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm)
        
+                #Eventual rebargaining happens below
                 for iA in range(par.num_A):          
                     check_participation_constraints(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot, wlp,par,sol,t,iL,iA,iz)   
                 
@@ -578,22 +577,32 @@ def interp_barg(par,id,Si,So):#i: individual, o: spouse
 @njit
 def store(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot, wlp,par,sol,t):
     
-# save remain values
- for iL in range(par.num_love):
-     for iA in range(par.num_A):
-         for iP in range(par.num_power):
-             for iz in range(par.num_z):
-                 idx = (t,iz,iP,iL,iA);idz = (iz,iP,iL,iA)
+# # save remain values
+#   for iL in range(par.num_love):
+#       for iA in range(par.num_A):
+#           for iP in range(par.num_power):
+#               for iz in range(par.num_z):
+#                   idx = (t,iz,iP,iL,iA);idz = (iz,iP,iL,iA)
 
-                 sol.p_C_tot_remain_couple[idx] = p_C_tot[idz]
-                 sol.n_C_tot_remain_couple[idx] = n_C_tot[idz]
-                 sol.Vw_remain_couple[idx] = Vw[idz]
-                 sol.Vm_remain_couple[idx] = Vm[idz]
-                 sol.p_Vw_remain_couple[idx] = p_Vw[idz]
-                 sol.p_Vm_remain_couple[idx] = p_Vm[idz]
-                 sol.n_Vw_remain_couple[idx] = n_Vw[idz]
-                 sol.n_Vm_remain_couple[idx] = n_Vm[idz]
-                 sol.remain_WLP[idx] = wlp[idz]
+#                   sol.p_C_tot_remain_couple[idx] = p_C_tot[idz]
+#                   sol.n_C_tot_remain_couple[idx] = n_C_tot[idz]
+#                   sol.Vw_remain_couple[idx] = Vw[idz]
+#                   sol.Vm_remain_couple[idx] = Vm[idz]
+#                   sol.p_Vw_remain_couple[idx] = p_Vw[idz]
+#                   sol.p_Vm_remain_couple[idx] = p_Vm[idz]
+#                   sol.n_Vw_remain_couple[idx] = n_Vw[idz]
+#                   sol.n_Vm_remain_couple[idx] = n_Vm[idz]
+#                   sol.remain_WLP[idx] = wlp[idz]
+                  
+    sol.p_C_tot_remain_couple[t] = p_C_tot
+    sol.n_C_tot_remain_couple[t] = n_C_tot
+    sol.Vw_remain_couple[t] = Vw
+    sol.Vm_remain_couple[t] = Vm
+    sol.p_Vw_remain_couple[t] = p_Vw
+    sol.p_Vm_remain_couple[t] = p_Vm
+    sol.n_Vw_remain_couple[t] = n_Vw
+    sol.n_Vm_remain_couple[t] = n_Vm
+    sol.remain_WLP[t] = wlp
                  
 ##################################
 #        SIMULATIONS
