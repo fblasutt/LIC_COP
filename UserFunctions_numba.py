@@ -1,7 +1,7 @@
 from numba import njit
 from numba_stats import norm
-import numpy as np#import autograd.numpy as np#
-from consav import linear_interp, linear_interp_1d
+import numpy as np
+from consav import linear_interp
 from numba import config 
 from consav.grids import nonlinspace
 import setup
@@ -24,10 +24,10 @@ def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0)
     return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love
 
 @njit(cache=cache) 
-def resources_couple(t,assets,izw,izm,par,wlp=1):    
+def resources_couple(t,assets,izw,izm,ih,par,wlp=1):    
     # change resources if retired: women should not work! 
-    if t>=par.Tr: return par.R*assets + par.grid_zw[t,izw]                   + par.grid_zm[t,izm] 
-    else:         return par.R*assets + par.grid_zw[t,izw]*par.grid_wlp[wlp] + par.grid_zm[t,izm] 
+    if t>=par.Tr: return par.R*assets + np.exp(np.log(par.grid_zw[t,izw])+par.grid_h[ih])                   + par.grid_zm[t,izm] 
+    else:         return par.R*assets + np.exp(np.log(par.grid_zw[t,izw])+par.grid_h[ih])*par.grid_wlp[wlp] + par.grid_zm[t,izm] 
 
 @njit(cache=cache)
 def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):#function to minimize

@@ -39,7 +39,7 @@ cmaps = ('viridis','gray')
 model_list = ('model 1','model 2')
 t = 2
 iz=0
-
+ih=0
 
 par = models['model 1'].par
 for iL in (par.num_love//2,): 
@@ -58,7 +58,7 @@ for iL in (par.num_love//2,):
             for i,name in enumerate(model_list):
                 model = models[name]
             
-                Z = getattr(model.sol,var)[t,iz,:,iL,:]
+                Z = getattr(model.sol,var)[t,ih,iz,:,iL,:]
                 
                 alpha = 0.2 if name=='model 1' else 0.5
                 ax.plot_surface(X, Y, Z,rstride=1,cstride=1,cmap=cmaps[i], edgecolor='none',alpha=alpha);
@@ -117,32 +117,34 @@ for var in var_list:
 iP=0
 t=0
 iL=3
-util_model1=model.par.grid_power[iP]*getattr(models['model 1'].sol,'p_Vw_remain_couple')[t,iz,iP,iL-2,:]+\
-      (1.0-model.par.grid_power[iP])*getattr(models['model 1'].sol,'p_Vm_remain_couple')[t,iz,iP,iL-2,:]
+util_model1=model.par.grid_power[iP]*getattr(models['model 1'].sol,'p_Vw_remain_couple')[t,ih,iz,iP,iL-2,:]+\
+      (1.0-model.par.grid_power[iP])*getattr(models['model 1'].sol,'p_Vm_remain_couple')[t,ih,iz,iP,iL-2,:]
       
-util_model2=model.par.grid_power[iP]*getattr(models['model 2'].sol,'p_Vw_remain_couple')[t,iz,iP,iL-2,:]+\
-      (1.0-model.par.grid_power[iP])*getattr(models['model 2'].sol,'p_Vm_remain_couple')[t,iz,iP,iL-2,:]
+util_model2=model.par.grid_power[iP]*getattr(models['model 2'].sol,'p_Vw_remain_couple')[t,ih,iz,iP,iL-2,:]+\
+      (1.0-model.par.grid_power[iP])*getattr(models['model 2'].sol,'p_Vm_remain_couple')[t,ih,iz,iP,iL-2,:]
 
 fig, ax = plt.subplots()
 plt.plot(util_model1-util_model2)
 
 fig, ax = plt.subplots()
-plt.plot(model.par.grid_A,getattr(models['model 1'].sol,'p_C_tot_remain_couple')[t,iz,0,iL-2,:],
-         model.par.grid_A,getattr(models['model 2'].sol,'p_C_tot_remain_couple')[t,iz,0,iL-2,:])
+plt.plot(model.par.grid_A,getattr(models['model 1'].sol,'p_C_tot_remain_couple')[t,ih,iz,0,iL-2,:],
+         model.par.grid_A,getattr(models['model 2'].sol,'p_C_tot_remain_couple')[t,ih,iz,0,iL-2,:])
 
 fig, ax = plt.subplots()
-plt.plot(model.par.grid_power,getattr(models['model 1'].sol,'p_C_tot_remain_couple')[t,iz,:,iL-2,0],
-         model.par.grid_power,getattr(models['model 2'].sol,'p_C_tot_remain_couple')[t,iz,:,iL-2,0])
-
-
-fig, ax = plt.subplots()
-plt.plot(model.par.grid_power,getattr(models['model 1'].sol,'power')[t,iz,:,iL-2,0],
-         model.par.grid_power,getattr(models['model 2'].sol,'power')[t,iz,:,iL-2,0])
+plt.plot(model.par.grid_power,getattr(models['model 1'].sol,'p_C_tot_remain_couple')[t,ih,iz,:,iL-2,0],
+         model.par.grid_power,getattr(models['model 2'].sol,'p_C_tot_remain_couple')[t,ih,iz,:,iL-2,0])
 
 
 fig, ax = plt.subplots()
-plt.plot(model.par.grid_A,getattr(models['model 1'].sol,'power')[t,iz,0,iL-2,:],
-         model.par.grid_A,getattr(models['model 2'].sol,'power')[t,iz,0,iL-2,:])
+plt.plot(model.par.grid_power,getattr(models['model 1'].sol,'power')[t,ih,iz,:,iL-2,0],
+         model.par.grid_power,getattr(models['model 2'].sol,'power')[t,ih,iz,:,iL-2,0])
+
+
+fig, ax = plt.subplots()
+plt.plot(model.par.grid_A,getattr(models['model 1'].sol,'power')[t,ih,iz,0,iL-2,:],
+         model.par.grid_A,getattr(models['model 2'].sol,'power')[t,ih,iz,0,iL-2,:])
+
+
 
 
 
