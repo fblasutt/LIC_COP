@@ -38,22 +38,12 @@ print('Time elapsed for model simulation is {}'.format(toc-tic))
 # Create basic figurs
 ##################################
 
-import UserFunctions_numba as usr
-par=modelj.par;sol=modelj.sol;sim=modelj.sim
-agg_cons,home_good=np.zeros((2,*sim.Cw_pub.shape))
-for t in range(par.simT):
-    for i in range(par.simN):
-        home_good[i,t]=usr.home_good(sim.Cw_pub[i,t],par.θ,par.λ,par.tb,couple=1.0,ishom=1.0-sim.WLP[i,t])
-        agg_cons[i,t]= (par.α1*sim.Cw_priv[i,t]**par.ϕ1 + par.α2*home_good[i,t]**par.ϕ1)**(1/par.ϕ2)
-        
-
 
 #Graph the mean path of assets, income and consumption
 base=np.cumsum(np.ones(modelj.par.T))
 fig, ax = plt.subplots(figsize=(11, 8))   #Initialize figure and size
 ax.plot(base, modelj.sim.incw.mean(axis=0)+modelj.sim.incm.mean(axis=0), label="Mean income path") 
 ax.plot(base, modelj.sim.C_tot.mean(axis=0), label="Mean consumption path")
-ax.plot(base, agg_cons.mean(axis=0), label="Mean aggregage consumption path")
 ax.plot(base, modelj.sim.Aw.mean(axis=0)+modelj.sim.Am.mean(axis=0), label="Mean assets path") 
 ax.grid()
 ax.set_xlabel('t')                        #Label of x axis

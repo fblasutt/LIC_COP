@@ -23,8 +23,8 @@ class HouseholdModelClass(EconModelClass):
         par.EGM = True# Want to use the EGM method to solve the model?
         #Note: to get EGM vs. vfi equivalence max assets should be VERY large
         
-        par.R = 1.00#3
-        par.β = 1.00# Discount factor
+        par.R = 1.03
+        par.β = 1/1.03# Discount factor
         
         par.div_A_share = 0.5 # divorce share of wealth to wife
 
@@ -72,7 +72,7 @@ class HouseholdModelClass(EconModelClass):
         par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;
     
         # income of men and women: sd of income shocks in t=0 and after that
-        par.σzw=0.0001;par.σ0zw=0.00005;par.σzm=0.0001;par.σ0zm=0.00005
+        par.σzw=0.0001;par.σ0zw=0.05;par.σzm=0.0001;par.σ0zm=0.05
         
         # pre-computation fo consumption
         par.num_Ctot = 150;par.max_Ctot = par.max_A
@@ -118,15 +118,8 @@ class HouseholdModelClass(EconModelClass):
         
         # simulation
         shape_sim = (par.simN,par.simT)
-        sim.Cw_priv = np.nan + np.ones(shape_sim) #w' priv consumption
-        sim.Cm_priv = np.nan + np.ones(shape_sim) #m' priv consumption
-        sim.Cw_pub = np.nan + np.ones(shape_sim)  #w' pub consumption
-        sim.Cm_pub = np.nan + np.ones(shape_sim)  #m' pub consumption
-        sim.Cw_tot = np.nan + np.ones(shape_sim)  #w' priv+pub consumption
-        sim.Cm_tot = np.nan + np.ones(shape_sim)  #m' priv+pub consumption
-        sim.C_tot = np.nan + np.ones(shape_sim)   #w+m total consumtion
-        sim.iz = np.ones(shape_sim,dtype=np.int_) #index of income shocks
-        
+        sim.C_tot = np.nan + np.ones(shape_sim)         # total consumption
+        sim.iz = np.ones(shape_sim,dtype=np.int_)       # index of income shocks 
         sim.A = np.nan + np.ones(shape_sim)             # total assets (m+w)
         sim.Aw = np.nan + np.ones(shape_sim)            # w's assets
         sim.Am = np.nan + np.ones(shape_sim)            # m's assets
@@ -631,12 +624,9 @@ def store(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot, wlp,par,sol,t):
 def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continuous...
     
     # unpacking some values to help numba optimize
-    pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)#single
-    A=sim.A;Aw=sim.Aw; Am=sim.Am;Cw_priv=sim.Cw_priv;Cw_pub=sim.Cw_pub;Cm_priv=sim.Cm_priv;Cm_pub=sim.Cm_pub
-    couple=sim.couple;power_idx=sim.power_idx;power=sim.power;love=sim.love;draw_love=sim.draw_love;iz=sim.iz;
-    wlp=sim.WLP;incw=sim.incw;incm=sim.incm;ih=sim.ih
-    
-    
+    A=sim.A;Aw=sim.Aw; Am=sim.Am;couple=sim.couple;power_idx=sim.power_idx;power=sim.power;C_tot=sim.C_tot
+    love=sim.love;draw_love=sim.draw_love;iz=sim.iz;wlp=sim.WLP;incw=sim.incw;incm=sim.incm;ih=sim.ih
+        
     for i in prange(par.simN):
         for t in range(par.simT):
             
@@ -697,12 +687,9 @@ def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continu
                     power_idx[i,t] = update_bargaining_index(Sw,Sm,power_idx_lag, par.num_power)
 
                 # infer partnership status
-                if power_idx[i,t] < 0.0: # divorce is coded as -1
-                    couple[i,t] = False
-
-                else:
-                    couple[i,t] = True
-
+                if power_idx[i,t] < 0.0: couple[i,t] = False# divorce is coded as -1
+                else:                    couple[i,t] = True
+                    
             else: # remain single
 
                 couple[i,t] = False
@@ -712,8 +699,9 @@ def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continu
                               
                 # first decide about labor participation
                 power[i,t] = par.grid_power[power_idx[i,t]]
-                V_p_grid=power[i,t]*sol.p_Vw_remain_couple[t,ih[i,t],iz[i,t],power_idx[i,t]]+(1.0-power[i,t])*sol.p_Vm_remain_couple[t,ih[i,t],iz[i,t],power_idx[i,t]]
-                V_n_grid=power[i,t]*sol.n_Vw_remain_couple[t,ih[i,t],iz[i,t],power_idx[i,t]]+(1.0-power[i,t])*sol.n_Vm_remain_couple[t,ih[i,t],iz[i,t],power_idx[i,t]]
+                idd=(t,ih[i,t],iz[i,t],power_idx[i,t])
+                V_p_grid=power[i,t]*sol.p_Vw_remain_couple[idd]+(1.0-power[i,t])*sol.p_Vm_remain_couple[idd]
+                V_n_grid=power[i,t]*sol.n_Vw_remain_couple[idd]+(1.0-power[i,t])*sol.n_Vm_remain_couple[idd]
                 V_p=linear_interp.interp_2d(par.grid_love,par.grid_A,V_p_grid,love[i,t],A_lag)
                 V_n=linear_interp.interp_2d(par.grid_love,par.grid_A,V_n_grid,love[i,t],A_lag)
                 c=np.maximum(V_p,V_n)/par.σ
@@ -722,15 +710,12 @@ def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continu
                 wlp[i,t]=(part_i>sim.shock_taste[i,t])
                                
                 # optimal consumption allocation if couple (note use of the updated index)
-                sol_C_tot = sol.p_C_tot_remain_couple[t,ih[i,t],iz[i,t],power_idx[i,t]] if wlp[i,t] else sol.n_C_tot_remain_couple[t,ih[i,t],iz[i,t],power_idx[i,t]] 
-                C_tot = linear_interp.interp_2d(par.grid_love,par.grid_A,sol_C_tot,love[i,t],A_lag)
-                args=(np.array([C_tot]),par.grid_Ctot,sol.pre_Ctot_Cw_priv[wlp[i,t],power_idx[i,t]],sol.pre_Ctot_Cm_priv[wlp[i,t],power_idx[i,t]])
-                Cw_priv[i:i+1,t], Cm_priv[i:i+1,t], C_pub = usr.intraperiod_allocation(*args)
-                Cw_pub[i,t] = Cm_pub[i,t] = C_pub[0]
-            
+                sol_C_tot = sol.p_C_tot_remain_couple[idd] if wlp[i,t] else sol.n_C_tot_remain_couple[idd] 
+                C_tot[i,t] = linear_interp.interp_2d(par.grid_love,par.grid_A,sol_C_tot,love[i,t],A_lag)
+
                 # update end-of-period states
                 M_resources = usr.resources_couple(t,A_lag,iz_w,iz_m,ih[i,t],par,wlp=wlp[i,t]) 
-                A[i,t] = M_resources - Cw_priv[i,t] - Cm_priv[i,t] - Cw_pub[i,t]
+                A[i,t] = M_resources - C_tot[i,t]#
 
                 # in case of divorce 
                 Aw[i,t] = par.div_A_share * A[i,t]
@@ -744,20 +729,14 @@ def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continu
 
                 # optimal consumption allocations
                 Cw_tot = linear_interp.interp_1d(par.grid_Aw,sol_single_w,Aw_lag)
-                Cm_tot = linear_interp.interp_1d(par.grid_Am,sol_single_m,Am_lag)            
-                Cw_priv[i,t],Cw_pub[i,t] = usr.intraperiod_allocation_single(Cw_tot,*pars)
-                Cm_priv[i,t],Cm_pub[i,t] = usr.intraperiod_allocation_single(Cm_tot,*pars)
+                Cm_tot = linear_interp.interp_1d(par.grid_Am,sol_single_m,Am_lag)   
+                C_tot[i,t] = Cw_tot + Cm_tot
 
                 # update end-of-period states
                 Mw = par.R*Aw_lag + incw[i,t] # total resources woman
                 Mm = par.R*Am_lag + incm[i,t] # total resources man
-                Aw[i,t] = Mw - Cw_priv[i,t] - Cw_pub[i,t] #assets woman
-                Am[i,t] = Mm - Cm_priv[i,t] - Cm_pub[i,t] #assets man
-
-    # total consumption
-    sim.Cw_tot[::] = sim.Cw_priv[::] + sim.Cw_pub[::]
-    sim.Cm_tot[::] = sim.Cm_priv[::] + sim.Cm_pub[::]
-    sim.C_tot[::] = sim.Cw_priv[::] + sim.Cm_priv[::] + sim.Cw_pub[::]
+                Aw[i,t] = Mw - Cw_tot
+                Am[i,t] = Mm - Cm_tot
        
 @njit
 def update_bargaining_index(Sw,Sm,iP, num_power): 
