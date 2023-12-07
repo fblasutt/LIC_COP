@@ -58,7 +58,6 @@ for iL in (par.num_love//2,):
             if var == 'power':  ax.set(zlim=[0.0,1.0])
             ax.set(xlabel='power',ylabel='$A$');ax.set_title(f'{var}')
     
-      
 # Simulated Path
 var_list = ('couple','A','power','love','WLP')
 model_list = ('model 1','model 2')
@@ -89,3 +88,6 @@ for var in var_list:
         y = getattr(model.sim,var);y = np.nanmean(y + nan,axis=0)
         ax.plot(y,marker=markers[i],linestyle=linestyles[i],linewidth=linewidth,label=model.spec['latexname']);
         ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power_idx}, init_love={init_love}')
+
+
+#plt.hist(par.grid_power[model.sim.power_idx_lag[model.sim.power_idx!=-1]]-par.grid_power[model.sim.power_idx[model.sim.power_idx!=-1]])

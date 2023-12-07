@@ -288,7 +288,7 @@ def check_participation_constraints(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wl
 
             idx = (t,ih,iz,iP,iL,iA)
             for i,key in enumerate(list_couple): key[idx] = list_raw[i][iP]
-            sol.power_idx[idx] = iP;sol.power[idx] = par.grid_power[iP]
+            sol.power[idx] = par.grid_power[iP]
             
     #2) no iP values consistent with marriage
     elif (max_Sw < 0.0) | (max_Sm < 0.0): 
@@ -297,7 +297,7 @@ def check_participation_constraints(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wl
             idx = (t,ih,iz,iP,iL,iA)
             for i,key in enumerate(list_couple):
                 key[idx]=list_single[i][idx_s_w] if iswomen[i] else list_single[i][idx_s_m]                
-            sol.power_idx[idx] = -1;sol.power[idx] = -1.0       
+            sol.power[idx] = -1.0       
             
     #3) some iP are (invidivually) consistent with marriage
     else: 
@@ -325,7 +325,7 @@ def check_participation_constraints(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wl
                         if iP==0: key[idx] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_zero_w,Low_w-1) 
                         else:     key[idx] = list_couple[i][(t,ih,iz,0,iL,iA)]; # re-use that the interpolated values are identical                           
 
-                    sol.power_idx[idx] = Low_w; sol.power[idx] = power_at_zero_w
+                    sol.power[idx] = power_at_zero_w
                                        
                 else: # divorce
 
@@ -333,7 +333,7 @@ def check_participation_constraints(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wl
                         if iswomen[i]: key[idx] = list_single[i][idx_s_w]
                         else:          key[idx] = list_single[i][idx_s_m]
 
-                    sol.power_idx[idx] = -1; sol.power[idx] = -1.0
+                    sol.power[idx] = -1.0
                                     
             # 3.2) man wants to leave
             elif iP>Low_m: 
@@ -343,19 +343,19 @@ def check_participation_constraints(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wl
                         if (iP==(Low_m+1)): key[idx] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_zero_m,Low_m)                             
                         else: key[idx] = list_couple[i][(t,ih,iz,Low_m+1,iL,iA)]; # re-use that the interpolated values are identical
                             
-                    sol.power_idx[idx] = Low_m; sol.power[idx] = power_at_zero_m
+                    sol.power[idx] = power_at_zero_m
                                       
                 else: # divorce
 
                     for i,key in enumerate(list_couple):
                         key[idx] = list_single[i][idx_s_w] if iswomen[i] else list_single[i][idx_s_m] 
-                    sol.power_idx[idx] = -1; sol.power[idx] = -1.0
+                    sol.power[idx] = -1.0
                    
             # 3.3) no-one wants to leave
             else:
 
                 for i,key in enumerate(list_couple): key[idx] = list_raw[i][iP]
-                sol.power_idx[idx] = iP; sol.power[idx] = par.grid_power[iP]
+                sol.power[idx] = par.grid_power[iP]
                 
                 
 @njit
