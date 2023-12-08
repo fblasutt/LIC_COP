@@ -3,7 +3,7 @@
 ########################################
 
 parallel=False
-nojit=False
+nojit=True
 cache=False
 woman = 1
 man = 2

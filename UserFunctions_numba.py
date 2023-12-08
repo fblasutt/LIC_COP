@@ -23,11 +23,19 @@ def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0)
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
     return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love
 
+ 
 @njit(cache=cache) 
-def resources_couple(t,assets,izw,izm,ih,par,wlp=1):    
-    # change resources if retired: women should not work! 
-    if t>=par.Tr: return par.R*assets + np.exp(np.log(par.grid_zw[t,izw])+par.grid_h[ih])                   + par.grid_zm[t,izm] 
-    else:         return par.R*assets + np.exp(np.log(par.grid_zw[t,izw])+par.grid_h[ih])*par.grid_wlp[wlp] + par.grid_zm[t,izm] 
+def resources_couple(par,t,ih,iz,assets):     
+     
+    izw=iz//par.num_zm;izm=iz%par.num_zw 
+     
+    #resources depending on employment 
+    res_not_work = par.R*assets + np.exp(np.log(par.grid_zw[t,izw])+par.grid_h[ih])*par.grid_wlp[0] + par.grid_zm[t,izm]  
+    res_work     = par.R*assets + np.exp(np.log(par.grid_zw[t,izw])+par.grid_h[ih])*par.grid_wlp[1] + par.grid_zm[t,izm]  
+     
+    # change resources if retired: women should not work!  
+    if t>=par.Tr: return res_not_work, res_not_work  
+    else:         return res_not_work, res_work  
 
 @njit(cache=cache)
 def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):#function to minimize
@@ -89,19 +97,19 @@ def intraperiod_allocation_single(C_tot,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
     
     return C_priv,C_tot - C_priv#=C_pub
 
-def labor_income(t0,t1,t2,T,Tr,sigma_persistent,sigma_init,npts):
-    
-
-    X, Pi =rouw_nonst(T,sigma_persistent,sigma_init,npts)
-    
-    if sigma_persistent<0.001:    
-        for t in range(T-1):X[t][:]=0.0
-        for t in range(T-1):Pi[t]=np.eye(npts)
-        
-    for t in range(T):X[t][:]=np.exp(X[t]+t0+t1*t+t2*t**2)
-    for t in range(Tr,T):X[t][:]=0.2
-
-    return np.array(X), Pi
+def labor_income(t0,t1,t2,T,Tr,sigma_persistent,sigma_init,npts,pension): 
+     
+ 
+    X, Pi =rouw_nonst(T,sigma_persistent,sigma_init,npts) 
+     
+    if sigma_persistent<0.001:     
+        for t in range(T-1):X[t][:]=0.0 
+        for t in range(T-1):Pi[t]=np.eye(npts) 
+         
+    for t in range(T):X[t][:]=np.exp(X[t]+t0+t1*t+t2*t**2) 
+    for t in range(Tr,T):X[t][:]=pension 
+ 
+    return np.array(X), Pi 
    
 
 

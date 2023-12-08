@@ -129,14 +129,14 @@ def solve_remain_couple(par,sol,t):
                 for iA in range(par.num_A): 
                     for iP in range(par.num_power):  
                         
-                        idx=(ih,iz,iP,iL,iA);izw=iz//par.num_zm;izm=iz%par.num_zw# indexes 
+                        idx=(ih,iz,iP,iL,iA)#;izw=iz//par.num_zm;izm=iz%par.num_zw# indexes 
                         # if (t==12) & (iP==1) & (iz==4) & (iA==49):
                         #     import matplotlib.pyplot as plt
                         #     remain_Vm[idx,1,1]=3.0          
                         # continuation values 
                         if t==(par.T-1):#last period 
                       
-                            n_C_tot[idx] = usr.resources_couple(t,par.grid_A[iA],izw,izm,ih,par,wlp=0)#usr.resources_couple(t,par.Tr,par.grid_A[iA],par.grid_zw[t,izw],0.0,par.grid_zm[t,izm],par.R) #No savings, it's the last period 
+                            n_C_tot[idx] = usr.resources_couple(par,t,ih,iz,par.grid_A[iA])[0]# usr.resources_couple(t,par.grid_A[iA],izw,izm,ih,par,wlp=0)#usr.resources_couple(t,par.Tr,par.grid_A[iA],par.grid_zw[t,izw],0.0,par.grid_zm[t,izm],par.R) #No savings, it's the last period 
                              
                             # current utility from consumption allocation 
                             remain_Cw_priv, remain_Cm_priv, remain_C_pub =\
@@ -152,7 +152,7 @@ def solve_remain_couple(par,sol,t):
                             coeffsWn = prefilter(((0.0,par.max_A,par.num_A),), nEVw[ih,iz,iP,iL,:],k=3) 
                             coeffsMn = prefilter(((0.0,par.max_A,par.num_A),), nEVm[ih,iz,iP,iL,:],k=3)
                              
-                            def M_resources(wlp): return usr.resources_couple(t,par.grid_A[iA],izw,izm,ih,par,wlp=wlp)
+                            def M_resources(wlp): return usr.resources_couple(par,t,ih,iz,par.grid_A[iA])[wlp]#usr.resources_couple(t,par.grid_A[iA],izw,izm,ih,par,wlp=wlp)
                             
                             #first find optimal total consumption 
                             p_args=(iL,par.grid_power[iP],pEVw[iz,iP,iL,:],pEVm[iz,iP,iL,:],coeffsWp,coeffsMp, 

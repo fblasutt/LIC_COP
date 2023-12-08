@@ -17,7 +17,7 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 T = 4
 specs = {
     'model 1':{'latexname':'EGM', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":35,"EGM":True}},
-    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":35,"EGM":False}},
+    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":35,"EGM":True}},
 }
 
 # solve different models (takes several minutes)
@@ -61,12 +61,12 @@ for iL in (par.num_love//2,):
 # Simulated Path
 var_list = ('couple','A','power','love','WLP')
 model_list = ('model 1','model 2')
-init_power_idx=7;init_love=0.0
+init_power=model.par.grid_power[7];init_love=0.0 
 for i,name in enumerate(model_list):
     model = models[name]
 
     # show how starting of in a low bargaining power gradually improves
-    model.sim.init_power_idx[:] = init_power_idx
+    model.sim.init_power[:] = init_power
     model.sim.init_love[:] = init_love 
     model.simulate()
     
@@ -87,7 +87,7 @@ for var in var_list:
         # pick relevant variable for couples
         y = getattr(model.sim,var);y = np.nanmean(y + nan,axis=0)
         ax.plot(y,marker=markers[i],linestyle=linestyles[i],linewidth=linewidth,label=model.spec['latexname']);
-        ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power_idx}, init_love={init_love}')
+        ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power}, init_love={init_love}')
 
 
 #plt.hist(par.grid_power[model.sim.power_idx_lag[model.sim.power_idx!=-1]]-par.grid_power[model.sim.power_idx[model.sim.power_idx!=-1]])
