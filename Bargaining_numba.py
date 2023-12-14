@@ -508,7 +508,7 @@ def before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm):
     
 @njit
 def check_participation_constraints(par,solpower,gridpower,list_raw,list_single,idx,
-                                    list_couple=(),iswomen=(),nosim=True):
+                                    list_couple=(np.zeros((1,1)),),iswomen=(True,),nosim=True):
                  
     # surplus of marriage, then its min and max given states
     Sw = list_raw[0] - list_single[0] 
@@ -550,7 +550,7 @@ def check_participation_constraints(par,solpower,gridpower,list_raw,list_single,
                 if nosim:do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_m,i_Low_m,i_Low_m+1)
                                         
             # 3.3) divorce: men (women) wants to leave & woman (men) not happy to shift some bargaining power
-            elif ((power<Low_w) & (Sm_at_0_w < 0)) | ((power>Low_m) & (Sw_at_0_m < 0)):
+            elif ((power<Low_w) & (Sm_at_0_w <=0)) | ((power>Low_m) & (Sw_at_0_m <=0)):
                 solpower[idx[iP]] = -1.0  #update power, below update value function
                 if nosim:divorce(list_couple,list_single,iswomen,idx[iP])
                 
@@ -592,6 +592,7 @@ def interp_barg(par,Si,So,iswomen=True):#i: individual, o: spouse
         
     return power_at_zero, So_at_zero, par.grid_power[i_Low_i], i_Low_i
                 
+
 @njit
 def store(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot, wlp,par,sol,t):
                 
@@ -610,7 +611,7 @@ def store(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot, wlp,par,sol,t):
 #################################
 
 @njit(parallel=parallel)
-def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continuous...
+def simulate_lifecycle(sim,sol,par):
     
     # unpacking some values to help numba optimize
     A=sim.A;Aw=sim.Aw;Am=sim.Am;couple=sim.couple;power=sim.power;C_tot=sim.C_tot;couple_lag=sim.couple_lag;power_lag=sim.power_lag
@@ -644,7 +645,7 @@ def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continu
                 list_raw    = (np.array([interp2d(sol.Vw_remain_couple[*idx,iP],love[i,t],A[i,t]) for iP in range(par.num_power)]),
                                np.array([interp2d(sol.Vm_remain_couple[*idx,iP],love[i,t],A[i,t]) for iP in range(par.num_power)]))
 
-                check_participation_constraints(par,power,[power_lag[i,t]],list_raw,list_single,[(i,t)],nosim=False)
+                check_participation_constraints(par,power,np.array([power_lag[i,t]]),list_raw,list_single,[(i,t)],nosim=False)
                 
                 
                 couple[i,t] = False if power[i,t] < 0.0 else True # partnership status: divorce is coded as -1
@@ -665,7 +666,7 @@ def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continu
                 # update end-of-period states
                 M_resources = usr.resources_couple(par,t,ih[i,t],iz[i,t],A[i,t])[wlp[i,t]]
                 if t< par.simT-1:A[i,t+1] = M_resources - C_tot[i,t]#
-                if t< par.simT-1:Aw[i,t+1] = par.div_A_share * A[i,t]      # in case of divorce 
+                if t< par.simT-1:Aw[i,t+1] =       par.div_A_share * A[i,t]# in case of divorce 
                 if t< par.simT-1:Am[i,t+1] = (1.0-par.div_A_share) * A[i,t]# in case of divorce 
                
             else: # single
@@ -684,4 +685,3 @@ def simulate_lifecycle(sim,sol,par):     #TODO: updating power should be continu
                 Mm = par.R*Am[i,t] + incm[i,t] # total resources man
                 if t< par.simT-1: Aw[i,t+1] = Mw - Cw_tot
                 if t< par.simT-1: Am[i,t+1] = Mm - Cm_tot
-       
