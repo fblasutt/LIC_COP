@@ -182,7 +182,21 @@ def solve_remain_couple(par,sol,t):
                             remain_Vw[idx]=v_couple+(1.0-par.grid_power[iP])*(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
                             remain_Vm[idx]=v_couple+(-par.grid_power[iP])   *(remain_wlp[idx]*Δp+(1.0-remain_wlp[idx])*Δn)
                             
-                    check_participation_constraints(remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp,par,sol,t,iL,iA,iz,ih)      
+        #Eventual rebargaining happens below
+        for iz in range(par.num_z):  
+            for ih in range(par.num_h):
+                for iA in range(par.num_A): 
+                    for iP in range(par.num_power):        
+                    
+                        idx_s_w = (t,ih,iz//par.num_zm,iA);idx_s_m = (t,0,iz%par.num_zw,iA)
+                        idxx = [(t,ih,iz,i,iL,iA) for i in range(par.num_power)]               
+                        list_couple = (sol.Vw_couple, sol.Vm_couple)                 #couple        list
+                        list_raw    = (remain_Vw[ih,iz,:,iL,iA],remain_Vm[ih,iz,:,iL,iA])          #remain-couple list
+                        list_single = (sol.Vw_single[idx_s_w],sol.Vm_single[idx_s_m])#single        list
+                        iswomen     = (True,False)                                   #iswomen? in   list
+                        
+                        check_participation_constraints(par,sol.power,par.grid_power,list_raw,list_single,idxx,list_couple,iswomen)  
+   
     # return objects 
     return (remain_Vw,remain_Vm,p_remain_Vw,p_remain_Vm,n_remain_Vw,n_remain_Vm,p_C_tot,n_C_tot, remain_wlp)
 
@@ -262,110 +276,88 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
     return power*Vw + (1.0-power)*Vm, Vw,Vm
 
 @njit
-def check_participation_constraints(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wlp,par,sol,t,iL,iA,iz,ih):
+def check_participation_constraints(par,solpower,gridpower,list_raw,list_single,idx,
+                                    list_couple=(np.zeros((1,1)),),iswomen=(True,),nosim=True):
                  
-    # check the participation constraints
-    idx_s_w = (t,ih,iz//par.num_zm,iA);idx_s_m = (t,0,iz%par.num_zw,iA)
-    
-    list_couple = (sol.Vw_couple, sol.Vm_couple)       #couple        list
-    list_raw    = (Vw[ih,iz,:,iL,iA],Vm[ih,iz,:,iL,iA])#remain-couple list
-    list_single = (sol.Vw_single,sol.Vm_single)        #single        list
-    iswomen     = (True,False)                         #iswomen? in   list
-    
     # surplus of marriage, then its min and max given states
-    Sw = Vw[ih,iz,:,iL,iA] - sol.Vw_single[idx_s_w] 
-    Sm = Vm[ih,iz,:,iL,iA] - sol.Vm_single[idx_s_m] 
+    Sw = list_raw[0] - list_single[0] 
+    Sm = list_raw[1] - list_single[1] 
     min_Sw = np.min(Sw);min_Sm = np.min(Sm)
     max_Sw = np.max(Sw);max_Sm = np.max(Sm) 
 
-    ######################
-    # rebargaining below
-    #####################
-    
-    #1) all iP values are consistent with marriage
-    if (min_Sw >= 0.0) & (min_Sm >= 0.0): 
-        for iP in range(par.num_power):
-
-            idx = (t,ih,iz,iP,iL,iA)
-            for i,key in enumerate(list_couple): key[idx] = list_raw[i][iP]
-            sol.power[idx] = par.grid_power[iP]
-            
-    #2) no iP values consistent with marriage
-    elif (max_Sw < 0.0) | (max_Sm < 0.0): 
-        for iP in range(par.num_power):
-
-            idx = (t,ih,iz,iP,iL,iA)
-            for i,key in enumerate(list_couple):
-                key[idx]=list_single[i][idx_s_w] if iswomen[i] else list_single[i][idx_s_m]                
-            sol.power[idx] = -1.0       
-            
-    #3) some iP are (invidivually) consistent with marriage
-    else: 
-    
-        # find lowest (highest) value with positive surplus for women (men)
-        Low_w = 1 #0 # in case there is no crossing, this will be the correct value
-        Low_m = par.num_power-1-1 #par.num_power-1 # in case there is no crossing, this will be the correct value
-        for iP in range(par.num_power-1):
-            if (Sw[iP]<0) & (Sw[iP+1]>=0): Low_w = iP+1                            
-            if (Sm[iP]>=0) & (Sm[iP+1]<0): Low_m = iP
-                
-        # interpolate the surplus of each member at indifference points
-        power_at_zero_w, Sm_at_zero_w = interp_barg(par,Low_w-1,Sw,Sm)
-        power_at_zero_m, Sw_at_zero_m = interp_barg(par,Low_m  ,Sm,Sw)
+    # if expect rebargaining, interpolate the surplus of each member at indifference points
+    if ~((min_Sw >= 0.0) & (min_Sm >= 0.0)) & ~((max_Sw < 0.0) | (max_Sm < 0.0)):             
+        power_at_0_w, Sm_at_0_w, Low_w, i_Low_w = interp_barg(par,Sw,Sm,iswomen=True)
+        power_at_0_m, Sw_at_0_m, Low_m, i_Low_m = interp_barg(par,Sm,Sw,iswomen=False)
         
-        # update the outcomes
-        for iP in range(par.num_power):
-            idx = (t,ih,iz,iP,iL,iA)
-    
-            # 3.1) woman wants to leave
-            if iP<Low_w: 
-                if Sm_at_zero_w > 0: # man happy to shift some bargaining power
-
-                    for i,key in enumerate(list_couple):
-                        if iP==0: key[idx] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_zero_w,Low_w-1) 
-                        else:     key[idx] = list_couple[i][(t,ih,iz,0,iL,iA)]; # re-use that the interpolated values are identical                           
-
-                    sol.power[idx] = power_at_zero_w
-                                       
-                else: # divorce
-
-                    for i,key in enumerate(list_couple):  
-                        if iswomen[i]: key[idx] = list_single[i][idx_s_w]
-                        else:          key[idx] = list_single[i][idx_s_m]
-
-                    sol.power[idx] = -1.0
-                                    
-            # 3.2) man wants to leave
-            elif iP>Low_m: 
-                if Sw_at_zero_m > 0: # woman happy to shift some bargaining power
-                    
-                    for i,key in enumerate(list_couple):
-                        if (iP==(Low_m+1)): key[idx] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_zero_m,Low_m)                             
-                        else: key[idx] = list_couple[i][(t,ih,iz,Low_m+1,iL,iA)]; # re-use that the interpolated values are identical
-                            
-                    sol.power[idx] = power_at_zero_m
-                                      
-                else: # divorce
-
-                    for i,key in enumerate(list_couple):
-                        key[idx] = list_single[i][idx_s_w] if iswomen[i] else list_single[i][idx_s_m] 
-                    sol.power[idx] = -1.0
-                   
-            # 3.3) no-one wants to leave
-            else:
-
-                for i,key in enumerate(list_couple): key[idx] = list_raw[i][iP]
-                sol.power[idx] = par.grid_power[iP]
+    ##################################################################
+    # For a given power, find out if marriage, divorce or rebargaining
+    # Then, update power and (if no simulation) update value functions
+    #################################################################
+    for iP,power in enumerate(gridpower):
+        
+        #1) all iP values are consistent with marriage
+        if (min_Sw >= 0.0) & (min_Sm >= 0.0): 
+            solpower[idx[iP]] = power #update power, below update value function
+            if nosim:no_power_change(list_couple,list_raw,idx,iP,power)
+                     
+        #2) no iP values consistent with marriage
+        elif (max_Sw < 0.0) | (max_Sm < 0.0): 
+            solpower[idx[iP]] = -1.0 #update power, below update value function
+            if nosim:divorce(list_couple,list_single,iswomen,idx[iP])
                 
+        #3) some iP are (invidivually) consistent with marriage: try rebargaining
+        else:             
+            # 3.1) woman wants to leave &  man happy to shift some bargaining power
+            if (power<Low_w) & (Sm_at_0_w > 0): 
+                solpower[idx[iP]] = power_at_0_w #update power, below update value function
+                if nosim:do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_w,i_Low_w-1,0)
+                                                                          
+            # 3.2) man wants to leave & woman happy to shift some bargaining power
+            elif (power>Low_m) & (Sw_at_0_m > 0): 
+                solpower[idx[iP]] = power_at_0_m #update power, below update value function
+                if nosim:do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_m,i_Low_m,i_Low_m+1)
+                                        
+            # 3.3) divorce: men (women) wants to leave & woman (men) not happy to shift some bargaining power
+            elif ((power<Low_w) & (Sm_at_0_w <=0)) | ((power>Low_m) & (Sw_at_0_m <=0)):
+                solpower[idx[iP]] = -1.0  #update power, below update value function
+                if nosim:divorce(list_couple,list_single,iswomen,idx[iP])
                 
+            # 3.4) no-one wants to leave
+            else: 
+                solpower[idx[iP]] = power #update power, belowe update value function
+                if nosim:no_power_change(list_couple,list_raw,idx,iP,power)
 @njit
-def interp_barg(par,id,Si,So):#i: individual, o: spouse
+def no_power_change(list_couple,list_raw,idx,iP,power):
+    for i,key in enumerate(list_couple): key[idx[iP]] = list_raw[i][iP]        
+@njit
+def divorce(list_couple,list_single,iswomen,idx):    
+    for i,key in enumerate(list_couple):
+        key[idx]=list_single[i] if iswomen[i] else list_single[i]                
+@njit
+def do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_i,low_i,low_0):    
+    for i,key in enumerate(list_couple):
+        if iP==low_0: key[idx[iP]] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_0_i,low_i) 
+        else:         key[idx[iP]] = list_couple[i][idx[low_0]]; # re-use that the interpolated values are identical                               
+@njit
+def interp_barg(par,Si,So,iswomen=True):#i: individual, o: spouse
     
+    # find lowest (highest) value with positive surplus for women (men)
+    i_Low_i = 1 if iswomen else  par.num_power-1-1
+                     
+    for iP in range(par.num_power-1):
+        if iswomen:
+            if (Si[iP]<0) & (Si[iP+1]>=0): i_Low_i = iP+1 
+        else:                           
+            if (Si[iP]>=0) & (Si[iP+1]<0): i_Low_i = iP
+            
+    id = i_Low_i-1 if iswomen else i_Low_i
     denom = (par.grid_power[id+1] - par.grid_power[id])
     ratio_i = (Si[id+1] - Si[id])/denom
     ratio_o = (So[id+1] - So[id])/denom
     
     power_at_zero = par.grid_power[id] - Si[id]/ratio_i                     
     So_at_zero=So[id]+ratio_o*(power_at_zero-par.grid_power[id])
+    
+    return power_at_zero, So_at_zero, par.grid_power[i_Low_i], i_Low_i
         
-    return power_at_zero, So_at_zero

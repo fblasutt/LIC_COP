@@ -617,7 +617,7 @@ def simulate_lifecycle(sim,sol,par):
     A=sim.A;Aw=sim.Aw;Am=sim.Am;couple=sim.couple;power=sim.power;C_tot=sim.C_tot;couple_lag=sim.couple_lag;power_lag=sim.power_lag
     love=sim.love;draw_love=sim.draw_love;iz=sim.iz;wlp=sim.WLP;incw=sim.incw;incm=sim.incm;ih=sim.ih;
     
-    interp3d = lambda a,b,c,d : linear_interp.interp_3d(par.grid_love,par.grid_A,par.grid_power,a,b,c,d)
+    interp3d = lambda a,b,c,d : linear_interp.interp_3d(par.grid_power,par.grid_love,par.grid_A,a,b,c,d)
     interp2d = lambda a,b,c   : linear_interp.interp_2d(par.grid_love,par.grid_A,               a,b,c  ) 
     
     for i in prange(par.simN):
@@ -656,12 +656,12 @@ def simulate_lifecycle(sim,sol,par):
             if couple[i,t]:
                               
                 # first decide about labor participation (if not taste shocks this should be different) 
-                part_i=interp3d(sol.remain_WLP[idx],love[i,t],A[i,t],power[i,t])#
+                part_i=interp3d(sol.remain_WLP[idx],power[i,t],love[i,t],A[i,t])#
                 wlp[i,t]=(part_i>sim.shock_taste[i,t])
                                
                 # optimal consumption allocation if couple (note use of the updated index)
                 sol_C_tot = sol.p_C_tot_remain_couple[idx] if wlp[i,t] else sol.n_C_tot_remain_couple[idx] 
-                C_tot[i,t] = interp3d(sol_C_tot,love[i,t],A[i,t],power[i,t])
+                C_tot[i,t] = interp3d(sol_C_tot,power[i,t],love[i,t],A[i,t])
 
                 # update end-of-period states
                 M_resources = usr.resources_couple(par,t,ih[i,t],iz[i,t],A[i,t])[wlp[i,t]]
