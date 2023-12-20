@@ -17,7 +17,7 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 T = 4
 specs = {
     'model 1':{'latexname':'EGM', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":35,"EGM":True}},
-    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":35,"EGM":False}},
+    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,'num_love':3,"num_power":35,"EGM":True}},
 }
 
 # solve different models (takes several minutes)
@@ -39,7 +39,7 @@ cmaps = ('viridis','gray')
 model_list = ('model 1','model 2')
 
 #Points to consider
-t = 2; iz=0; ih=0
+t = 0; iz=0; ih=0
 
 par = models['model 1'].par
 for iL in (par.num_love//2,): 
@@ -61,7 +61,7 @@ for iL in (par.num_love//2,):
 # Simulated Path
 var_list = ('couple','A','power','love','WLP')
 model_list = ('model 1','model 2')
-init_power=model.par.grid_power[7];init_love=0.0 
+init_power=model.par.grid_power[7];init_love=par.num_love//2
 for i,name in enumerate(model_list):
     model = models[name]
 

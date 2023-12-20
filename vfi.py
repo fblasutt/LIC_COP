@@ -121,7 +121,7 @@ def solve_remain_couple(par,sol,t):
          
         #Variables defined in advance to improve speed 
         Vw_plus_vec,Vm_plus_vec=np.ones(par.num_shock_love)+np.nan,np.ones(par.num_shock_love)+np.nan 
-        love_next_vec = par.grid_love[iL] + par.grid_shock_love 
+        love_next_vec = par.grid_love[t][iL] 
         savings_vec = np.ones(par.num_shock_love) 
         
         for iz in range(par.num_z):  
@@ -204,47 +204,32 @@ def solve_remain_couple(par,sol,t):
 @njit(parallel=parallel)
 def integrate_couple(par,sol,t): 
      
-    EVw,EVm,pEVw,pEVm,nEVw,nEVm,tEVw,tEVm,EVdw,EVdm=np.ones((10,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A)) 
-    aw,am,adw,adm = np.ones((4,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A,par.num_shock_love)) 
-    love_next_vec=np.ones((par.num_love,par.num_shock_love)) 
-     
-    for iL in range(par.num_love):love_next_vec[iL,:] = par.grid_love[iL] + par.grid_shock_love 
-     
-    #Integrate income shocks
-    for iL in prange(par.num_love): 
-        for ih in range(par.num_h):     
-            for iP in range(par.num_power):     
-                for iA in range(par.num_A): 
-                    id_i=(ih,slice(None),iP,iL,iA);id_ii=(t+1,ih,slice(None),iP,iL,iA)
-                    tEVw[id_i] =  sol.Vw_couple[id_ii].flatten() @ par.Π[t] 
-                    tEVm[id_i] =  sol.Vm_couple[id_ii].flatten() @ par.Π[t] 
+    pEVw,pEVm,nEVw,nEVm=np.zeros((4,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A)) 
 
-    #Integrate love shocks
+    #kroneker product of uncertainty in love, income, human capital
+    Πp=np.kron(np.kron(par.Πh_p,par.Π[t]),par.Πl[t]);Πn=np.kron(np.kron(par.Πh_n,par.Π[t]),par.Πl[t])
+    to_pass=(Πp==0.0) & (Πn==0.0)#whether kroneker product is 0 and does not contribute to EV
+    
     for iL in prange(par.num_love): 
         for ih in range(par.num_h):  
             for iP in range(par.num_power):     
                 for iA in range(par.num_A): 
                     for iz in range(par.num_z): 
-                        id_i=(ih,iz,iP,slice(None),iA);id_ii=(ih,iz,iP,iL,iA)
-                        linear_interp.interp_1d_vec(par.grid_love,tEVw[id_i],love_next_vec[iL,:],aw[id_ii]) 
-                        linear_interp.interp_1d_vec(par.grid_love,tEVm[id_i],love_next_vec[iL,:],am[id_ii])
-    
-                        EVw[id_ii] =  aw[id_ii].flatten() @ par.grid_weight_love 
-                        EVm[id_ii] =  am[id_ii].flatten() @ par.grid_weight_love 
-           
-    #Integrate human capital transitions  
-    for iL in prange(par.num_love): 
-        for ih in range(par.num_h):
-            for iP in range(par.num_power):     
-                for iA in range(par.num_A): 
-                     for iz in range(par.num_z):      
-                         idx=(slice(None),iz,iP,iL,iA);idz=(ih,iz,iP,iL,iA)
-                     
-                         pEVw[idz]=EVw[idx]@par.Πh_p[ih,:]
-                         nEVw[idz]=EVw[idx]@par.Πh_n[ih,:]
-                         pEVm[idz]=EVm[idx]@par.Πh_p[ih,:]
-                         nEVm[idz]=EVm[idx]@par.Πh_n[ih,:]
-                        
+                        for jL in range(par.num_love): 
+                            for jh in range(par.num_h): 
+                                for jz in range(par.num_z):
+                                    
+                                    zdx = ih*par.num_love*par.num_z + iz*par.num_love+iL
+                                    zjdx =jh*par.num_love*par.num_z + jz*par.num_love+jL
+                                    
+                                    if to_pass[zjdx,zdx]:continue 
+                                    
+                                    idx=(ih,iz,iP,iL,iA);jdx=(t+1,jh,jz,iP,jL,iA)
+                                        
+                                    pEVw[idx]+= sol.Vw_couple[jdx]*Πp[zjdx,zdx]
+                                    nEVw[idx]+= sol.Vw_couple[jdx]*Πn[zjdx,zdx]
+                                    pEVm[idx]+= sol.Vm_couple[jdx]*Πp[zjdx,zdx]
+                                    nEVm[idx]+= sol.Vm_couple[jdx]*Πn[zjdx,zdx]                     
     return pEVw,pEVm,nEVw,nEVm
 
 
@@ -255,7 +240,7 @@ def value_of_choice_couple(Ctot,tt,M_resources,iL,power,Eaw,Eam,coeffsW,coeffsM,
         ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,couple,
         T,grid_A,grid_weight_love,β,num_shock_love,max_A,num_A,love_next_vec,savings_vec,ishom):  
   
-    pars= (ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,grid_love[iL],couple,ishom)  
+    pars= (ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,grid_love[tt][iL],couple,ishom)  
       
     # current utility from consumption allocation     
     Cw_priv, Cm_priv, C_pub = intraperiod_allocation(Ctot,num_Ctot,grid_Ctot,pre_Ctot_Cw_priviP,pre_Ctot_Cm_priviP)  
