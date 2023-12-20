@@ -62,8 +62,7 @@ class HouseholdModelClass(EconModelClass):
         par.pr_h_change = 0.1 # probability that  human capital depreciates
 
         # love/match quality
-        par.num_love = 41;par.max_love = 3.0
-        par.sigma_love = 0.1;par.num_shock_love = 5
+        par.num_love = 11;par.sigma_love = 0.1
         
         # income of men and women: gridpoints
         par.num_zw=3;par.num_zm=3; par.num_z=par.num_zm*par.num_zw
@@ -72,7 +71,7 @@ class HouseholdModelClass(EconModelClass):
         par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;
     
         # income of men and women: sd of income shocks in t=0 and after that
-        par.σzw=0.0001;par.σ0zw=0.05;par.σzm=0.0001;par.σ0zm=0.05
+        par.σzw=0.3;par.σ0zw=0.3;par.σzm=0.3;par.σ0zm=0.3
         
         # money you get at retirement
         par.pension = 0.2
@@ -129,7 +128,7 @@ class HouseholdModelClass(EconModelClass):
         sim.couple_lag = np.nan + np.ones(shape_sim)    # In a couple? True/False
         sim.power = np.nan + np.ones(shape_sim)         # barg power
         sim.power_lag = np.ones(shape_sim)              # barg power index
-        sim.love = np.nan + np.ones(shape_sim)          # love
+        sim.love = np.ones(shape_sim,dtype=np.int_)     # love
         sim.incw = np.nan + np.ones(shape_sim)          # w's income
         sim.incm = np.nan + np.ones(shape_sim)          # m's income
         sim.WLP = np.ones(shape_sim,dtype=np.int_)      # w's labor participation
@@ -137,22 +136,22 @@ class HouseholdModelClass(EconModelClass):
 
         # shocks
         np.random.seed(par.seed)
-        sim.draw_love = np.random.normal(size=shape_sim)           #love
-        sim.shock_z=np.random.random_sample((par.simN,par.simT))   #income
-        sim.shock_taste=np.random.random_sample((par.simN,par.simT))#taste shock
-        sim.shock_h=np.random.random_sample((par.simN,par.simT))   #human capital
+        sim.shock_love = np.random.random_sample((par.simN,par.simT))#love
+        sim.shock_z=np.random.random_sample((par.simN,par.simT))     #income
+        sim.shock_taste=np.random.random_sample((par.simN,par.simT)) #taste shock
+        sim.shock_h=np.random.random_sample((par.simN,par.simT))     #human capital
 
         # initial distribution
-        sim.init_ih = np.zeros(par.simN,dtype=np.int_)             #initial w's human capital
-        sim.A[:,0] = par.grid_A[0] + np.zeros(par.simN)            #total assetes
-        sim.Aw[:,0] = par.div_A_share * sim.A[:,0]                 #w's assets
-        sim.Am[:,0] = (1.0 - par.div_A_share) * sim.A[:,0]         #m's assets
-        sim.init_couple = np.ones(par.simN,dtype=bool)             #state (couple=1/single=0)
-        sim.init_power =  0.11373989**np.ones(par.simN)            #barg power 
-        sim.init_love = np.zeros(par.simN)                         #initial love
-        sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2#w's initial income 
-        sim.init_zm = np.ones(par.simN,dtype=np.int_)*par.num_zm//2#m's initial income
-        sim.init_z  = sim.init_zw*par.num_zm+sim.init_zm           #    initial income
+        sim.init_ih = np.zeros(par.simN,dtype=np.int_)                  #initial w's human capital
+        sim.A[:,0] = par.grid_A[0] + np.zeros(par.simN)                 #total assetes
+        sim.Aw[:,0] = par.div_A_share * sim.A[:,0]                      #w's assets
+        sim.Am[:,0] = (1.0 - par.div_A_share) * sim.A[:,0]              #m's assets
+        sim.init_couple = np.ones(par.simN,dtype=bool)                  #state (couple=1/single=0)
+        sim.init_power =  0.11373989**np.ones(par.simN)                 #barg power 
+        sim.init_love = np.ones(par.simN,dtype=np.int_)**par.num_love//2#initial love
+        sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2     #w's initial income 
+        sim.init_zm = np.ones(par.simN,dtype=np.int_)*par.num_zm//2     #m's initial income
+        sim.init_z  = sim.init_zw*par.num_zm+sim.init_zm                #    initial income
         
     def setup_grids(self):
         par = self.par
@@ -164,18 +163,14 @@ class HouseholdModelClass(EconModelClass):
 
         # women's human capital grid plus transition if w working (p) or not (n)
         par.grid_h = np.flip(np.linspace(-par.num_h*par.drift,0.0,par.num_h))
-        par.Πh_p  = np.array([[1.0,0.0],[1.0-par.pr_h_change,par.pr_h_change]]) #assumes 2 states for h
-        par.Πh_n  = np.array([[1.0-par.pr_h_change,par.pr_h_change],[0.0,1.0]]) #assumes 2 states for h
+        par.Πh_p  = np.array([[1.0,0.0],[1.0-par.pr_h_change,par.pr_h_change]]).T #assumes 2 states for h
+        par.Πh_n  = np.array([[1.0-par.pr_h_change,par.pr_h_change],[0.0,1.0]]).T #assumes 2 states for h
         
         # bargaining power. non-linear grid with more mass in both tails.        
         par.grid_power = usr.grid_fat_tails(0.01,0.99,par.num_power)
 
-        # love grid and shock
-        if par.num_love>1:par.grid_love = np.linspace(-par.max_love,par.max_love,par.num_love)           
-        else:             par.grid_love = np.array([0.0])
-            
-        if par.sigma_love<=1.0e-6:par.grid_shock_love,par.grid_weight_love = np.array([0.0]),np.array([1.0]);par.num_shock_love = 1
-        else:par.grid_shock_love,par.grid_weight_love = quadrature.normal_gauss_hermite(par.sigma_love,par.num_shock_love)
+        # love grid and shock    
+        par.grid_love,par.Πl= usr.rouw_nonst(par.T,par.sigma_love,par.sigma_love,par.num_love)
         
         # grid for women's labor supply
         par.grid_wlp=np.array([0.0,1.0]);par.num_wlp=len(par.grid_wlp)
@@ -196,12 +191,7 @@ class HouseholdModelClass(EconModelClass):
         par.grid_zw,par.Π_zw= usr.labor_income(par.t0w,par.t1w,par.t2w,par.T,par.Tr,par.σzw,par.σ0zw,par.num_zw,par.pension)
         par.grid_zm,par.Π_zm= usr.labor_income(par.t0m,par.t1m,par.t2m,par.T,par.Tr,par.σzm,par.σ0zm,par.num_zm,par.pension)
         par.Π=[np.kron(par.Π_zw[t],par.Π_zm[t]) for t in range(par.T-1)] # couples trans matrix    
-        par.matw0=usr.rouw_nonst(2,par.σ0zw,0.0,par.num_zw)[1][0] # w's initial income
-        par.matm0=usr.rouw_nonst(2,par.σ0zw,0.0,par.num_zw)[1][0] # m's initial income
-        par.matm = np.kron(par.matw0,par.matm0)                   # initial income
-        
-        
-        
+                        
     def solve(self):
 
         with jit(self) as model:#This allows passing sol and par to jiit functions  
@@ -296,7 +286,7 @@ def integrate_single(sol,par,t):
     for iA in prange(par.num_A):
         for iz in range(par.num_zw):
             for ih in range(par.num_h):
-                Ew[ih,iz,iA]  = sol.Vw_single[t+1,:,iz,iA] @ par.Πh_p[ih,:]
+                Ew[ih,iz,iA]  = sol.Vw_single[t+1,:,iz,iA] @ par.Πh_p[:,ih]
 
     return Ew,Em 
     
@@ -358,61 +348,45 @@ def solve_couple(sol,par,t):#Solve the couples's problem, choose EGM of VFI tech
               
     #Store above outcomes into solution
     store(*tuple_with_outcomes,par,sol,t)
-    
-    
+        
 @njit(parallel=parallel)
 def integrate_couple(par,sol,t): 
      
-    EVw,EVm,pEVw,pEVm,nEVw,nEVm,tEVw,tEVm,EVdw,EVdm=np.ones((10,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A)) 
-    aw,am,adw,adm = np.ones((4,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A,par.num_shock_love)) 
-    love_next_vec=np.ones((par.num_love,par.num_shock_love)) 
-     
-    for iL in range(par.num_love):love_next_vec[iL,:] = par.grid_love[iL] + par.grid_shock_love 
-     
-    #Integrate income shocks
-    for iL in prange(par.num_love): 
-        for ih in range(par.num_h):     
-            for iP in range(par.num_power):     
-                for iA in range(par.num_A): 
-                    id_i=(ih,slice(None),iP,iL,iA);id_ii=(t+1,ih,slice(None),iP,iL,iA)
-                    tEVw[id_i] =  sol.Vw_couple[id_ii].flatten() @ par.Π[t] 
-                    tEVm[id_i] =  sol.Vm_couple[id_ii].flatten() @ par.Π[t] 
+    pEVw,pEVm,nEVw,nEVm=np.zeros((4,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A)) 
 
-    #Integrate love shocks
+    #kroneker product of uncertainty in love, income, human capital
+    Πp=np.kron(np.kron(par.Πh_p,par.Π[t]),par.Πl[t]);Πn=np.kron(np.kron(par.Πh_n,par.Π[t]),par.Πl[t])
+    to_pass=(Πp==0.0) & (Πn==0.0)#whether kroneker product is 0 and does not contribute to EV
+    
     for iL in prange(par.num_love): 
         for ih in range(par.num_h):  
             for iP in range(par.num_power):     
                 for iA in range(par.num_A): 
                     for iz in range(par.num_z): 
-                        id_i=(ih,iz,iP,slice(None),iA);id_ii=(ih,iz,iP,iL,iA)
-                        linear_interp.interp_1d_vec(par.grid_love,tEVw[id_i],love_next_vec[iL,:],aw[id_ii]) 
-                        linear_interp.interp_1d_vec(par.grid_love,tEVm[id_i],love_next_vec[iL,:],am[id_ii])
-    
-                        EVw[id_ii] =  aw[id_ii].flatten() @ par.grid_weight_love 
-                        EVm[id_ii] =  am[id_ii].flatten() @ par.grid_weight_love 
-           
-    #Integrate human capital transitions  
-    for iL in prange(par.num_love): 
-        for ih in range(par.num_h):
-            for iP in range(par.num_power):     
-                for iA in range(par.num_A): 
-                     for iz in range(par.num_z):      
-                         idx=(slice(None),iz,iP,iL,iA);idz=(ih,iz,iP,iL,iA)
-                     
-                         pEVw[idz]=EVw[idx]@par.Πh_p[ih,:]
-                         nEVw[idz]=EVw[idx]@par.Πh_n[ih,:]
-                         pEVm[idz]=EVm[idx]@par.Πh_p[ih,:]
-                         nEVm[idz]=EVm[idx]@par.Πh_n[ih,:]
-                        
+                        for jL in range(par.num_love): 
+                            for jh in range(par.num_h): 
+                                for jz in range(par.num_z):
+                                    
+                                    zdx = ih*par.num_love*par.num_z + iz*par.num_love+iL
+                                    zjdx =jh*par.num_love*par.num_z + jz*par.num_love+jL
+                                    
+                                    if to_pass[zjdx,zdx]:continue 
+                                    
+                                    idx=(ih,iz,iP,iL,iA);jdx=(t+1,jh,jz,iP,jL,iA)
+                                        
+                                    pEVw[idx]+= sol.Vw_couple[jdx]*Πp[zjdx,zdx]
+                                    nEVw[idx]+= sol.Vw_couple[jdx]*Πn[zjdx,zdx]
+                                    pEVm[idx]+= sol.Vm_couple[jdx]*Πp[zjdx,zdx]
+                                    nEVm[idx]+= sol.Vm_couple[jdx]*Πn[zjdx,zdx]                     
     return pEVw,pEVm,nEVw,nEVm
-
 
 @njit(parallel=parallel) 
 def solve_remain_couple_egm(par,sol,t): 
                
     #Integration if not last period
     if t<(par.T-1): pEVw,pEVm,nEVw,nEVm = integrate_couple(par,sol,t)
- 
+
+
     # initialize 
     Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_Vc,n_Vc,p_C_tot,n_C_tot,wlp\
         =np.zeros((11,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A)) 
@@ -432,14 +406,14 @@ def solve_remain_couple_egm(par,sol,t):
                     if t==(par.T-1):#last period 
                         
                         #Get consumption then utilities (assume no labor participation). Note: no savings!
-                        Vw[idx],Vm[idx]=usr.couple_time_utility(n_res,par,sol,iP,0,par.grid_love[iL],pars)            
+                        Vw[idx],Vm[idx]=usr.couple_time_utility(n_res,par,sol,iP,0,par.grid_love[t][iL],pars)            
                         wlp[idx]=0.0;p_Vm[idx]=p_Vw[idx]=-1e10;n_Vw[idx],n_Vm[idx]=Vw[idx],Vm[idx];n_C_tot[idx] = n_res.copy() 
                                             
                     else:#periods before the last 
                                  
                         # compute consumption* and util given partecipation (0/1). last 4 arguments below are output at iz,iL,iP
-                        compute_couple(par,sol,idx,pars,pEVw,pEVm,1,p_res,p_C_tot,p_Vw,p_Vm,p_Vc) # participation 
-                        compute_couple(par,sol,idx,pars,nEVw,nEVm,0,n_res,n_C_tot,n_Vw,n_Vm,n_Vc) # no participation 
+                        compute_couple(par,sol,t,idx,pars,pEVw,pEVm,1,p_res,p_C_tot,p_Vw,p_Vm,p_Vc) # participation 
+                        compute_couple(par,sol,t,idx,pars,nEVw,nEVm,0,n_res,n_C_tot,n_Vw,n_Vm,n_Vc) # no participation 
                         if (t>=par.Tr):p_Vw[idx]=p_Vm[idx]=p_Vc[idx]=-1e10 # before retirement no labor participation 
                                                    
                         # compute the Pr. of of labor part. (wlp) + before-taste-shock util Vw and Vm
@@ -456,14 +430,14 @@ def solve_remain_couple_egm(par,sol,t):
                     iswomen     = (True,False)                                   #iswomen? in   list
                     
                     check_participation_constraints(par,sol.power,par.grid_power,list_raw,list_single,idxx,list_couple,iswomen)   
-                                                   
+                                              
     return (Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wlp) # return a tuple
        
 @njit    
-def compute_couple(par,sol,idx,pars2,EVw,EVm,part,res,C_tot,Vw,Vm,Vc): 
+def compute_couple(par,sol,t,idx,pars2,EVw,EVm,part,res,C_tot,Vw,Vm,Vc): 
  
     # indexes & initialization 
-    idz=idx[:-1];iP=idx[2];iL=idx[3];love=par.grid_love[iL];power = par.grid_power[iP]
+    idz=idx[:-1];iP=idx[2];iL=idx[3];love=par.grid_love[t][iL];power = par.grid_power[iP]
     C_pd,βEw,βEm,Vwd,Vmd,_= np.ones((6,par.num_A));pars=(par,sol,iP,part,love,pars2)  
                   
     # discounted expected marginal utility from t+1, wrt assets
@@ -592,7 +566,6 @@ def interp_barg(par,Si,So,iswomen=True):#i: individual, o: spouse
         
     return power_at_zero, So_at_zero, par.grid_power[i_Low_i], i_Low_i
                 
-
 @njit
 def store(Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot, wlp,par,sol,t):
                 
@@ -615,24 +588,24 @@ def simulate_lifecycle(sim,sol,par):
     
     # unpacking some values to help numba optimize
     A=sim.A;Aw=sim.Aw;Am=sim.Am;couple=sim.couple;power=sim.power;C_tot=sim.C_tot;couple_lag=sim.couple_lag;power_lag=sim.power_lag
-    love=sim.love;draw_love=sim.draw_love;iz=sim.iz;wlp=sim.WLP;incw=sim.incw;incm=sim.incm;ih=sim.ih;
+    love=sim.love;shock_love=sim.shock_love;iz=sim.iz;wlp=sim.WLP;incw=sim.incw;incm=sim.incm;ih=sim.ih;
     
-    interp3d = lambda a,b,c,d : linear_interp.interp_3d(par.grid_power,par.grid_love,par.grid_A,a,b,c,d)
-    interp2d = lambda a,b,c   : linear_interp.interp_2d(par.grid_love,par.grid_A,               a,b,c  ) 
+    interp2d = lambda a,b,c : linear_interp.interp_2d(par.grid_power,par.grid_A,a,b,c)
+    interp1d = lambda a,b   : linear_interp.interp_1d(par.grid_A,               a,b) 
     
     for i in prange(par.simN):
         for t in range(par.simT):
               
             # Copy variables from t-1 or initial condition. Initial (t>0) assets: preamble (later in the simulation)   
-            couple_lag[i,t] = couple[i,t-1]                                  if t>0 else sim.init_couple[i]
-            power_lag[i,t] = power[i,t-1]                                    if t>0 else sim.init_power[i]
-            love[i,t] = love[i,t-1] + par.sigma_love*draw_love[i,t]          if t>0 else sim.init_love[i]
-            iz[i,t] = usr.mc_simulate(iz[i,t-1],par.Π[t-1],sim.shock_z[i,t]) if t>0 else sim.init_z[i]
+            couple_lag[i,t] = couple[i,t-1]                                          if t>0 else sim.init_couple[i]
+            power_lag[i,t] = power[i,t-1]                                            if t>0 else sim.init_power[i]
+            love[i,t] = usr.mc_simulate(love[i,t-1],par.Πl[t-1],shock_love[i,t])     if t>0 else sim.init_love[i]
+            iz[i,t] = usr.mc_simulate(iz[i,t-1],par.Π[t-1],sim.shock_z[i,t])         if t>0 else sim.init_z[i]
             Π = par.Πh_p if wlp[i,t-1] else par.Πh_n 
-            ih[i,t] = usr.mc_simulate(ih[i,t-1],Π.T,sim.shock_h[i,t])        if t>0 else sim.init_ih[i]
+            ih[i,t] = usr.mc_simulate(ih[i,t-1],Π,sim.shock_h[i,t])                  if t>0 else sim.init_ih[i]
 
             # indices and resources
-            idx = (t,ih[i,t],iz[i,t]);iz_w=iz[i,t]//par.num_zm;iz_m=iz[i,t]%par.num_zw
+            idx = (t,ih[i,t],iz[i,t],slice(None),love[i,t]);iz_w=iz[i,t]//par.num_zm;iz_m=iz[i,t]%par.num_zw
             incw[i,t]=np.exp(np.log(par.grid_zw[t,iz_w])+par.grid_h[ih[i,t]]);incm[i,t]=par.grid_zm[t,iz_m]         
                     
             # first check if they want to remain together and what the bargaining power will be if they do.
@@ -642,8 +615,8 @@ def simulate_lifecycle(sim,sol,par):
                 list_single = (linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,ih[i,t],iz_w],Aw[i,t]),
                                linear_interp.interp_1d(par.grid_Am,sol.Vm_single[t,      0,iz_m],Am[i,t]))
 
-                list_raw    = (np.array([interp2d(sol.Vw_remain_couple[*idx,iP],love[i,t],A[i,t]) for iP in range(par.num_power)]),
-                               np.array([interp2d(sol.Vm_remain_couple[*idx,iP],love[i,t],A[i,t]) for iP in range(par.num_power)]))
+                list_raw    = (np.array([interp1d(sol.Vw_remain_couple[idx][iP],A[i,t]) for iP in range(par.num_power)]),
+                               np.array([interp1d(sol.Vm_remain_couple[idx][iP],A[i,t]) for iP in range(par.num_power)]))
 
                 check_participation_constraints(par,power,np.array([power_lag[i,t]]),list_raw,list_single,[(i,t)],nosim=False)
                 
@@ -656,12 +629,12 @@ def simulate_lifecycle(sim,sol,par):
             if couple[i,t]:
                               
                 # first decide about labor participation (if not taste shocks this should be different) 
-                part_i=interp3d(sol.remain_WLP[idx],power[i,t],love[i,t],A[i,t])#
+                part_i=interp2d(sol.remain_WLP[idx],power[i,t],A[i,t])#
                 wlp[i,t]=(part_i>sim.shock_taste[i,t])
                                
                 # optimal consumption allocation if couple (note use of the updated index)
                 sol_C_tot = sol.p_C_tot_remain_couple[idx] if wlp[i,t] else sol.n_C_tot_remain_couple[idx] 
-                C_tot[i,t] = interp3d(sol_C_tot,power[i,t],love[i,t],A[i,t])
+                C_tot[i,t] = interp2d(sol_C_tot,power[i,t],A[i,t])
 
                 # update end-of-period states
                 M_resources = usr.resources_couple(par,t,ih[i,t],iz[i,t],A[i,t])[wlp[i,t]]
