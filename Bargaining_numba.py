@@ -51,7 +51,7 @@ class HouseholdModelClass(EconModelClass):
         par.Tr = 6 # age at retirement
         
         # wealth
-        par.num_A = 20;par.max_A = 10.0
+        par.num_A = 20;par.max_A = 30.0
         
         # bargaining power
         par.num_power = 15
