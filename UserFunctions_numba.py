@@ -69,8 +69,8 @@ def couple_time_utility(Ctot,par,sol,iP,part,love,pars2):
     p_Cw_priv, p_Cm_priv, p_C_pub =\
         intraperiod_allocation(Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
         
-    vw_new = util(p_Cw_priv,p_C_pub,*pars2,love,True,1.0-par.grid_wlp[part])                       
-    vm_new = util(p_Cm_priv,p_C_pub,*pars2,love,True,1.0-par.grid_wlp[part])
+    vw_new = util(p_Cw_priv,p_C_pub,*pars2,love[0],True,1.0-par.grid_wlp[part])                       
+    vm_new = util(p_Cm_priv,p_C_pub,*pars2,love[1],True,1.0-par.grid_wlp[part])
      
     return vw_new, vm_new
 
@@ -197,7 +197,25 @@ def mc_simulate(statein,Piin,shocks):
     """ 
     return  np.sum(np.cumsum(Piin[:,statein])<shocks)
 
-
+@njit(fastmath=True)
+def rescale_matrix(Π,tol=1e-4):
+    """Rescale transition matrix by eliminating close to zero elements
+    
+    Args:
+        Π: n*n square tranistion matrix
+        tol: elements of Π below tol are set to 0
+    
+    """
+    
+    zeros = Π < tol
+    for i in range(len(Π)):
+        
+        Π[zeros[:,i],i] = 0.0
+        Π[:,i] = Π[:,i] / np.sum(Π[:,i])
+        
+    return Π 
+    
+    
 ##########################
 # Other routines below
 ##########################
