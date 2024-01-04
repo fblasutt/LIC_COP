@@ -16,8 +16,8 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 # settings for models to solve
 T = 4
 specs = {
-    'model 1':{'latexname':'EGM', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,"num_power":35,"EGM":True}},
-    'model 2':{'latexname':'VFI', 'par':{'sigma_love':0.2,'T':T,'num_A':100,'max_A':1.5,"num_power":35,"EGM":True}},
+    'model 1':{'latexname':'EGM1', 'par':{'div_cost':0.0,'sigma_love':0.2,'T':T,'num_A':40,'max_A':1.5,"num_power":15}},
+    'model 2':{'latexname':'EGM2', 'par':{'div_cost':1.0,'sigma_love':0.2,'T':T,'num_A':40,'max_A':1.5,"num_power":15}},
 }
 
 # solve different models (takes several minutes)
@@ -59,7 +59,7 @@ for iL in (par.num_love//2,):
             ax.set(xlabel='power',ylabel='$A$');ax.set_title(f'{var}')
     
 # Simulated Path
-var_list = ('couple','A','power','love','WLP')
+var_list = ('couple','A','power','WLP')
 model_list = ('model 1','model 2')
 init_power=model.par.grid_power[7];init_love=par.num_love//2
 for i,name in enumerate(model_list):

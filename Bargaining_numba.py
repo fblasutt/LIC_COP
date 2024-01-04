@@ -4,7 +4,6 @@ from consav.grids import nonlinspace
 from consav import linear_interp, linear_interp_1d
 from numba import njit,prange,config
 import UserFunctions_numba as usr
-import vfi as vfi
 from quantecon.optimize.nelder_mead import nelder_mead
 import setup
 upper_envelope=usr.create(usr.couple_time_utility)
@@ -20,13 +19,10 @@ class HouseholdModelClass(EconModelClass):
     def setup(self):
         par = self.par
         
-        par.EGM = True# Want to use the EGM method to solve the model?
-        #Note: to get EGM vs. vfi equivalence max assets should be VERY large
-        
         par.R = 1.03
         par.β = 1/1.03# Discount factor
-        
         par.div_A_share = 0.5 # divorce share of wealth to wife
+        par.div_cost = 0.1    # share of wealth lost upon divorce 
 
         # Utility: CES aggregator or additively linear
         par.ρ = 1.5#        # CRRA      
@@ -160,9 +156,8 @@ class HouseholdModelClass(EconModelClass):
         par = self.par
         
         # wealth. Single grids are such to avoid interpolation
-        par.grid_A = par.grid_A = np.linspace(0.0,par.max_A,par.num_A)#nonlinspace(0.0,par.max_A,par.num_A,1.1)
-        par.grid_Aw = par.div_A_share * par.grid_A
-        par.grid_Am = (1.0 - par.div_A_share) * par.grid_A
+        par.grid_A  = nonlinspace(0.0,par.max_A,par.num_A,1.1)#np.linspace(0.0,par.max_A,par.num_A)
+        par.grid_Aw =  par.grid_A; par.grid_Am =  par.grid_A
 
         # women's human capital grid plus transition if w working (p) or not (n)
         par.grid_h = np.flip(np.linspace(-par.num_h*par.drift,0.0,par.num_h))
@@ -211,7 +206,7 @@ class HouseholdModelClass(EconModelClass):
             for t in reversed(range(par.T)):
                 
                 # choose EGM or vhi method to solve the single's problem
-                solve_single_egm(sol,par,t) if par.EGM else vfi.solve_single(sol,par,t)
+                solve_single_egm(sol,par,t)
                 
                 # solve the couple's problem (EGM vs. vfi done later)
                 solve_couple(sol,par,t)
@@ -344,11 +339,10 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
 # SOLUTION - COUPLES
 ################################################
 
-def solve_couple(sol,par,t):#Solve the couples's problem, choose EGM of VFI techniques
+def solve_couple(sol,par,t):#Solve the couples's problem
  
     # solve the couple's problem: choose your fighter
-    if par.EGM: tuple_with_outcomes =     solve_remain_couple_egm(par,sol,t)# EGM solution        
-    else:       tuple_with_outcomes = vfi.solve_remain_couple(par,sol,t)    # vfi solution
+    tuple_with_outcomes =     solve_remain_couple_egm(par,sol,t)
               
     #Store above outcomes into solution
     store(*tuple_with_outcomes,par,sol,t)
@@ -429,14 +423,17 @@ def solve_remain_couple_egm(par,sol,t):
        
                 #Eventual rebargaining happens below
                 for iA in range(par.num_A):        
-                    
-                    idx_s_w = (t,ih,iz//par.num_zm,iA);idx_s_m = (t,0,iz%par.num_zw,iA)
+                                      
                     idxx = [(t,ih,iz,i,iL,iA) for i in range(par.num_power)]               
                     list_couple = (sol.Vw_couple, sol.Vm_couple)                 #couple        list
                     list_raw    = (Vw[ih,iz,:,iL,iA],Vm[ih,iz,:,iL,iA])          #remain-couple list
-                    list_single = (sol.Vw_single[idx_s_w],sol.Vm_single[idx_s_m])#single        list
                     iswomen     = (True,False)                                   #iswomen? in   list
                     
+                    Aw=par.div_A_share      *par.grid_A[iA]*(1.0-par.div_cost)   #wealth if divorce, w
+                    Am=(1.0-par.div_A_share)*par.grid_A[iA]*(1.0-par.div_cost)   #wealth if divorce, m
+                    list_single = (linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,ih,iz//par.num_zm],Aw),#single
+                                   linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,0,iz%par.num_zw]  ,Am))#list
+                                       
                     check_participation_constraints(par,sol.power,par.grid_power,list_raw,list_single,idxx,list_couple,iswomen)   
                                               
     return (Vw,Vm,p_Vw,p_Vm,n_Vw,n_Vm,p_C_tot,n_C_tot,wlp) # return a tuple
@@ -647,8 +644,8 @@ def simulate_lifecycle(sim,sol,par):
                 # update end-of-period states
                 M_resources = usr.resources_couple(par,t,ih[i,t],iz[i,t],A[i,t])[wlp[i,t]]
                 if t< par.simT-1:A[i,t+1] = M_resources - C_tot[i,t]#
-                if t< par.simT-1:Aw[i,t+1] =       par.div_A_share * A[i,t]# in case of divorce 
-                if t< par.simT-1:Am[i,t+1] = (1.0-par.div_A_share) * A[i,t]# in case of divorce 
+                if t< par.simT-1:Aw[i,t+1] =       par.div_A_share*A[i,t]*(1.0-par.div_cost)# in case of divorce 
+                if t< par.simT-1:Am[i,t+1] = (1.0-par.div_A_share)*A[i,t]*(1.0-par.div_cost)# in case of divorce 
                
             else: # single
                
