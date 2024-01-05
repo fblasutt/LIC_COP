@@ -69,7 +69,7 @@ class HouseholdModelClass(EconModelClass):
         par.t0w=-0.5;par.t1w=0.03;par.t2w=0.0;par.t0m=-0.5;par.t1m=0.03;par.t2m=0.0;
     
         # income of men and women: sd of income shocks in t=0 and after that
-        par.σzw=0.4;par.σ0zw=0.3;par.σzm=0.4;par.σ0zm=0.3
+        par.σzw=0.3;par.σ0zw=0.3;par.σzm=0.3;par.σ0zm=0.3
         
         # money you get at retirement
         par.pension = 0.2
@@ -391,9 +391,9 @@ def solve_remain_couple_egm(par,sol,t):
         =np.zeros((11,2,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A)) 
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)     
     for iL in prange(par.num_love): 
-        for rel in (mar,coh):
-            for ih in range(par.num_h):
-                for iz in range(par.num_z):
+        for ih in range(par.num_h):
+            for iz in range(par.num_z):
+                for rel in (mar,coh):
                     for iP in range(par.num_power):
                     
                         # indexes
@@ -421,8 +421,9 @@ def solve_remain_couple_egm(par,sol,t):
                                                        
                             # compute the Pr. of of labor part. (wlp) + before-taste-shock util Vw and Vm
                             before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm)
-           
-                    #Eventual rebargaining happens below
+       
+                #Eventual rebargaining happens below
+                for rel in (mar,coh):
                     for iA in range(par.num_A):        
                                           
                         idxx = [(t,rel,ih,iz,i,iL,iA) for i in range(par.num_power)]               
