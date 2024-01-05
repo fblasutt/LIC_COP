@@ -19,9 +19,9 @@ def home_good(x,θ,λ,tb,couple=0.0,ishom=0.0):
     return (θ*x**λ+(1.0-θ)*home_time**λ)**(1.0/λ)
 
 @njit(cache=cache)
-def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0):
+def util(c_priv,c_pub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=0.0,ishom=0.0,γ=0.0):
     homegood=home_good(c_pub,θ,λ,tb,couple=couple,ishom=ishom)
-    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love
+    return ((α1*c_priv**ϕ1 + α2*homegood**ϕ1)**ϕ2)/(1.0-ρ)+love-γ
 
  
 @njit(cache=cache) 
@@ -46,8 +46,8 @@ def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):#function to
         allocation of private and home consumption
     """
     Cpub=Ctot-np.sum(Cpriv)
-    Vw=util(Cpriv[0],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=True,ishom=ishom)
-    Vm=util(Cpriv[1],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=True,ishom=ishom)
+    Vw=util(Cpriv[0],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=True,ishom=ishom,γ=0.0)
+    Vm=util(Cpriv[1],Cpub,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb,love=0.0,couple=True,ishom=ishom,γ=0.0)
     
     return np.array([power*Vw +(1.0-power)*Vm, Vw, Vm])
 
@@ -62,15 +62,15 @@ def marg_util(C_tot,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):
     
     
 @njit(cache=cache)
-def couple_time_utility(Ctot,par,sol,iP,part,love,pars2):
+def couple_time_utility(Ctot,par,sol,iP,part,love,pars2,γ):
     """
         Couple's utility given total consumption Ctot (float)
     """    
     p_Cw_priv, p_Cm_priv, p_C_pub =\
         intraperiod_allocation(Ctot,par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP]) 
         
-    vw_new = util(p_Cw_priv,p_C_pub,*pars2,love[0],True,1.0-par.grid_wlp[part])                       
-    vm_new = util(p_Cm_priv,p_C_pub,*pars2,love[1],True,1.0-par.grid_wlp[part])
+    vw_new = util(p_Cw_priv,p_C_pub,*pars2,love[0],True,1.0-par.grid_wlp[part],γ)                       
+    vm_new = util(p_Cm_priv,p_C_pub,*pars2,love[1],True,1.0-par.grid_wlp[part],γ)
      
     return vw_new, vm_new
 
