@@ -313,12 +313,12 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
     pars=(par.ρ,par.ϕ1,par.ϕ2,par.α1,par.α2,par.θ,par.λ,par.tb)
     
     #function to find optimal savings, called for both men and women below
-    def loop_savings_singles(par,num_hi,num_zi,grid_zi,grid_Ai,ci,Ei,cit,Eit,cip,vi):
+    def loop_savings_singles(par,num_hi,num_zi,grid_zi,grid_Ai,ci,Ei,cit,Eit,cip,vi,women=True):
         
         for iz in prange(num_zi):
             for ih in range(num_hi):
 
-                resi = (par.R*grid_Ai + np.exp(np.log(grid_zi[t,iz]) + par.grid_h[ih]))
+                resi = par.R*grid_Ai+usr.income_single(par,t,ih,iz,women=women)#resources
                 if t==(par.T-1): ci[ih,iz,:] = resi.copy() #consume all resources
                 else: #before T-1 make consumption saving choices
                     
@@ -329,21 +329,21 @@ def solve_single_egm(sol,par,t):#TODO add upper-envelope if remarriage...
                     linear_interp.interp_1d_vec(np.flip(par.grid_marg_u_s),par.grid_inv_marg_u,βEid,cit[ih,iz,:])
                     
                     # use budget constraint to get current resources
-                    Ai_now = (grid_Ai.flatten() + cit[ih,iz,:] - grid_zi[t,iz])/par.R
+                    Ri_now = grid_Ai.flatten() + cit[ih,iz,:] 
                     
                     # now interpolate onto common beginning-of-period asset grid to get consumption
-                    linear_interp.interp_1d_vec(Ai_now,cit[ih,iz,:],grid_Ai,ci[ih,iz,:])
+                    linear_interp.interp_1d_vec(Ri_now,cit[ih,iz,:],resi,ci[ih,iz,:]) 
                     
                     # get consumption (+make sure that the no-borrowing constraint is respected)
-                    ci[ih,iz,:] = np.minimum(ci[ih,iz,:], resi.copy())       
+                    ci[ih,iz,:] = np.minimum(ci[ih,iz,:], resi)       
                     
                 # get utility: interpolate Exp value (line 1), current util (line 2) and add continuation (line 3)#TODO improve precision
-                linear_interp.interp_1d_vec(grid_Ai,Ei[ih,iz,:], resi.copy()-ci[ih,iz,:],Eit[ih,iz,:])
+                linear_interp.interp_1d_vec(grid_Ai,Ei[ih,iz,:], resi-ci[ih,iz,:],Eit[ih,iz,:])
                 linear_interp.interp_1d_vec(par.grid_Ctot,par.grid_cpriv_s,ci[ih,iz,:],cip[ih,iz,:])
                 vi[ih,iz,:]=usr.util(cip[ih,iz,:],ci[ih,iz,:]-cip[ih,iz,:],*pars)+par.β*Eit[ih,iz,:]
             
-    loop_savings_singles(par,par.num_h,par.num_zw,par.grid_zw,par.grid_Aw,cw,Ew,cwt,Ewt,cwp,vw)#women savings
-    loop_savings_singles(par,1        ,par.num_zm,par.grid_zm,par.grid_Am,cm,Em,cmt,Emt,cmp,vm)#men   savings
+    loop_savings_singles(par,par.num_h,par.num_zw,par.grid_zw,par.grid_Aw,cw,Ew,cwt,Ewt,cwp,vw,women=True)#savings
+    loop_savings_singles(par,1        ,par.num_zm,par.grid_zm,par.grid_Am,cm,Em,cmt,Emt,cmp,vm,women=False)#savings
                  
         
 #################################################
@@ -633,7 +633,7 @@ def simulate_lifecycle(sim,sol,par):
 
             # indices and resources
             idx = (t,ih[i,t],iz[i,t]);iz_w=iz[i,t]//par.num_zm;iz_m=iz[i,t]%par.num_zw
-            incw[i,t]=np.exp(np.log(par.grid_zw[t,iz_w])+par.grid_h[ih[i,t]]);incm[i,t]=par.grid_zm[t,iz_m]         
+            incw[i,t]=usr.income_single(par,t,ih[i,t],iz_w,women=True);incm[i,t]=usr.income_single(par,t,ih[i,t],iz_m,women=False)       
                     
             # first check if they want to remain together and what the bargaining power will be if they do.
             if couple_lag[i,t]:                   
@@ -678,7 +678,7 @@ def simulate_lifecycle(sim,sol,par):
                 # optimal consumption allocations
                 Cw_tot = linear_interp.interp_1d(par.grid_Aw,sol_single_w,Aw[i,t])
                 Cm_tot = linear_interp.interp_1d(par.grid_Am,sol_single_m,Am[i,t])   
-                C_tot[i,t] = Cw_tot + Cm_tot
+                C_tot[i,t] = Cw_tot + Cm_tot; wlp[i,t] = 0
 
                 # update end-of-period states
                 Mw = par.R*Aw[i,t] + incw[i,t] # total resources woman

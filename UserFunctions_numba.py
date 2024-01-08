@@ -37,6 +37,14 @@ def resources_couple(par,t,ih,iz,assets):
     if t>=par.Tr: return res_not_work, res_not_work  
     else:         return res_not_work, res_work  
 
+@njit(cache=cache)  
+def income_single(par,t,ih,iz,women=True): 
+     
+    labor_income =  par.grid_zw[t,iz] if women else par.grid_zm[t,iz]#without HC! 
+    if (women) & (t<par.Tr): return np.exp(np.log(labor_income) + par.grid_h[ih]) 
+    else                   : return labor_income 
+ 
+    
 @njit(cache=cache)
 def couple_util(Cpriv,Ctot,power,ishom,ρ,ϕ1,ϕ2,α1,α2,θ,λ,tb):#function to minimize
     """
