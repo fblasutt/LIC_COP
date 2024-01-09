@@ -133,7 +133,7 @@ class HouseholdModelClass(EconModelClass):
         sim.love = np.ones(shape_sim,dtype=np.int_)            # love
         sim.incw = np.nan + np.ones(shape_sim)                 # w's income
         sim.incm = np.nan + np.ones(shape_sim)                 # m's income
-        sim.WLP = -np.ones(shape_sim,dtype=np.int_)             # w's labor participation
+        sim.WLP = np.zeros(shape_sim,dtype=np.int_)             # w's labor participation
         sim.ih = np.ones(shape_sim,dtype=np.int_)              # w's human capital
 
         # shocks
@@ -410,47 +410,46 @@ def solve_remain_couple_egm(par,sol,t):
                         γ=par.γ[rel];love = (par.grid_lovew[t][iL//par.num_lovem], par.grid_lovem[t][iL%par.num_lovew])
                         
                         # continuation values 
-                        if t==(par.T-1):#last period 
+                        if (t>=par.Tr):#retirement
                             
-                            #Get consumption then utilities (assume no labor participation). Note: no savings!
-                            Vw[idx],Vm[idx]=usr.couple_time_utility(n_res,par,sol,iP,0,love,pars,γ)            
-                            wlp[idx]=0.0;p_Vm[idx]=p_Vw[idx]=-1e10;n_Vw[idx],n_Vm[idx]=Vw[idx],Vm[idx];n_C_tot[idx] = n_res.copy() 
-                                                
-                            #if cohabiting, do the cohabitation - marriage choice and update consumption 
-                            if rel>1: cohabit(idx,p_rel,p_Vc,p_Vw,p_Vm,p_C_tot)
-                            if rel>1: cohabit(idx,n_rel,n_Vc,n_Vw,n_Vm,n_C_tot)
-                            
-                        else:#periods before the last 
+                            #Get consumption then utilities (assume no labor participation).
+                            if t==(par.T-1):#last period: no savings!
+                                n_C_tot[idx] = n_res.copy()
+                                n_Vw[idx],n_Vm[idx]=usr.couple_time_utility(n_C_tot[idx],par,sol,iP,0,love,pars,γ)
+                            else:#retired: periods before last
+                                compute_couple(par,sol,t,idx,pars,nEVw,nEVm,0,n_res,n_C_tot,n_Vw,n_Vm,n_Vc,love)
+                                                        
+                            wlp[idx]=0.0;p_Vm[idx]=p_Vw[idx]=-1e10;Vw[idx],Vm[idx]=n_Vw[idx],n_Vm[idx];p_rel[idx]=n_rel[idx]=rel
+                                                                            
+                        else:#periods before retirement
                                      
                             # compute consumption* and util given partecipation (0/1). last 4 arguments below are output at iz,iL,iP
                             compute_couple(par,sol,t,idx,pars,pEVw,pEVm,1,p_res,p_C_tot,p_Vw,p_Vm,p_Vc,love) # participation 
                             compute_couple(par,sol,t,idx,pars,nEVw,nEVm,0,n_res,n_C_tot,n_Vw,n_Vm,n_Vc,love) # no participation 
-                            
-                                         
+                                                                   
                             #if cohabiting, do the cohabitation - marriage choice and update consumption 
-                            if rel>1: cohabit(idx,p_rel,p_Vc,p_Vw,p_Vm,p_C_tot)
-                            if rel>1: cohabit(idx,n_rel,n_Vc,n_Vw,n_Vm,n_C_tot)
+                            if rel==1: cohabit(idx,p_rel,p_Vc,p_Vw,p_Vm,p_C_tot)
+                            if rel==1: cohabit(idx,n_rel,n_Vc,n_Vw,n_Vm,n_C_tot)
       
-                            if (t>=par.Tr):p_Vw[idx]=p_Vm[idx]=p_Vc[idx]=-1e10 # before retirement no labor participation 
                             # compute the Pr. of of labor part. (wlp) + before-taste-shock util Vw and Vm
                             before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm)
-       
-                            #if (t>=par.Tr):  wlp[idx]=0.0;p_Vm[idx]=p_Vw[idx]=-1e10;n_Vw[idx],n_Vm[idx]=Vw[idx],Vm[idx];n_C_tot[idx] = n_res.copy() 
-                    #Eventual rebargaining happens below
-                    for iA in range(par.num_A):        
-                                          
-                        idxx = [(t,rel,ih,iz,i,iL,iA) for i in range(par.num_power)]               
-                        list_couple = (sol.Vw_couple, sol.Vm_couple)                 #couple        list
-                        list_raw    = (Vw[rel,ih,iz,:,iL,iA],Vm[rel,ih,iz,:,iL,iA])  #remain-couple list
-                        iswomen     = (True,False)                                   #iswomen? in   list
-                        
-                        Aw=par.div_A_share      *par.grid_A[iA]*(1.0-par.sep_cost[rel])   #wealth if separation, w
-                        Am=(1.0-par.div_A_share)*par.grid_A[iA]*(1.0-par.sep_cost[rel])   #wealth if separation, m
-                        list_single = (linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,ih,iz//par.num_zm],Aw),#single
-                                       linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,0,iz%par.num_zw]  ,Am))#list
-                                           
-                        check_participation_constraints(par,sol.power,par.grid_power,list_raw,list_single,idxx,list_couple,iswomen)   
-                         
+                       
+                    if (t<par.Tr):  #Eventual rebargaining happens below if not retired
+                        for iA in range(par.num_A):        
+                                              
+                            idxx = [(t,rel,ih,iz,i,iL,iA) for i in range(par.num_power)]               
+                            list_couple = (sol.Vw_couple, sol.Vm_couple)                 #couple        list
+                            list_raw    = (Vw[rel,ih,iz,:,iL,iA],Vm[rel,ih,iz,:,iL,iA])  #remain-couple list
+                            iswomen     = (True,False)                                   #iswomen? in   list
+                            
+                            Aw=par.div_A_share      *par.grid_A[iA]*(1.0-par.sep_cost[rel])   #wealth if separation, w
+                            Am=(1.0-par.div_A_share)*par.grid_A[iA]*(1.0-par.sep_cost[rel])   #wealth if separation, m
+                            list_single = (linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,ih,iz//par.num_zm],Aw),#single
+                                           linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,0,iz%par.num_zw]  ,Am))#list
+                                               
+                            check_participation_constraints(par,sol.power,par.grid_power,list_raw,list_single,idxx,list_couple,iswomen)   
+                                                               
+    if (t>=par.Tr):sol.Vw_couple[t] = Vw.copy(); sol.Vm_couple[t] = Vm.copy() #copy utility if retired                  
     return (Vw,Vm,p_Vw,p_Vm,p_Vc,n_Vw,n_Vm,n_Vc,p_C_tot,n_C_tot,wlp,p_rel,n_rel) # return a tuple
        
 @njit    
@@ -502,13 +501,15 @@ def before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm):
     
 @njit
 def cohabit(idx,rel,Vc,Vw,Vm,C_tot):
+      
+    rel[idx]  = np.argmax(Vc[:,*idx[1:]],axis=0)#0 if marriage, 1 if cohabtation
+    marry=rel[idx]==0;idx_m=(0,*idx[1:])#indices
     
-    rel[idx]  = np.argmax(Vc[idx],axis=0)#0 if marriage, 1 if cohabtation
-    Vc[idx]   = rel[idx]*Vc[1,*idx[1:]]   +(1.0-rel[idx])*Vc[0,*idx[1:]]
-    Vw[idx]   = rel[idx]*Vw[1,*idx[1:]]   +(1.0-rel[idx])*Vw[0,*idx[1:]]
-    Vm[idx]   = rel[idx]*Vm[1,*idx[1:]]   +(1.0-rel[idx])*Vm[0,*idx[1:]]
-    C_tot[idx]= rel[idx]*C_tot[1,*idx[1:]]+(1.0-rel[idx])*C_tot[0,*idx[1:]]
-    
+    Vc[idx][marry]   = Vc[idx_m][marry]
+    Vw[idx][marry]   = Vw[idx_m][marry]
+    Vm[idx][marry]   = Vm[idx_m][marry]
+    C_tot[idx][marry]= C_tot[idx_m][marry]
+
 @njit
 def check_participation_constraints(par,solpower,gridpower,list_raw,list_single,idx,
                                     list_couple=(np.zeros((1,1)),),iswomen=(True,),nosim=True):
@@ -641,8 +642,8 @@ def simulate_lifecycle(sim,sol,par):
             idx = (t,rel_lag[i,t],ih[i,t],iz[i,t],slice(None),love[i,t]);iz_w=iz[i,t]//par.num_zm;iz_m=iz[i,t]%par.num_zw
             incw[i,t]=usr.income_single(par,t,ih[i,t],iz_w,women=True);incm[i,t]=usr.income_single(par,t,ih[i,t],iz_m,women=False)      
                     
-            # first check if they want to remain together and what the bargaining power will be if they do.
-            if rel_lag[i,t]<2:                   
+            # do rebargaining power and divorce choice ifin a couple and not retired
+            if (rel_lag[i,t]<2) & (t<par.Tr):                   
 
                 # value of transitioning into singlehood
                 list_single = (linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,ih[i,t],iz_w],Aw[i,t]),
@@ -655,7 +656,7 @@ def simulate_lifecycle(sim,sol,par):
                              
                 rel[i,t] = 2 if power[i,t] < 0.0 else rel_lag[i,t] # partnership status: divorce is coded as -1. to be updated if couple
                     
-            else: rel[i,t] = 2 # remain single
+            else: rel[i,t] = rel_lag[i,t]; power[i,t] = power[i,t-1] # same status as t-1
 
             # update behavior
             if rel[i,t]<2:
@@ -663,15 +664,12 @@ def simulate_lifecycle(sim,sol,par):
                 # first decide about labor participation (if not taste shocks this should be different) 
                 part_i=interp2d(sol.remain_WLP[idx],power[i,t],A[i,t])#
                 wlp[i,t]=(part_i>sim.shock_taste[i,t])
-                
-                
-                if rel[i,t]==1:#if originally cohabiting, cohabit or marry choice
+                            
+                if (rel[i,t]==1) & (t<par.Tr):#if originally cohabiting (and not retired), cohabit or marry choice
                     p_Vc = sol.p_Vc_remain_couple[t,:,*idx[2:]] if wlp[i,t] else sol.n_Vc_remain_couple[t,:,*idx[2:]]
                     M_Vc = interp2d(p_Vc[0],power[i,t],A[i,t])
                     C_Vc = interp2d(p_Vc[1],power[i,t],A[i,t])
                     rel[i,t] = C_Vc>M_Vc
-                else:#if originally married, cannot decide to cohabit
-                    rel[i,t]==0
                 
                 # optimal consumption allocation if couple (note use of the updated index)
                 sol_C_tot = sol.p_C_tot_remain_couple[idx] if wlp[i,t] else sol.n_C_tot_remain_couple[idx] 
@@ -692,7 +690,7 @@ def simulate_lifecycle(sim,sol,par):
                 # optimal consumption + labor allocations
                 Cw_tot = linear_interp.interp_1d(par.grid_Aw,sol_single_w,Aw[i,t])
                 Cm_tot = linear_interp.interp_1d(par.grid_Am,sol_single_m,Am[i,t])   
-                C_tot[i,t] = Cw_tot + Cm_tot; wlp[i,t] = 0
+                C_tot[i,t] = Cw_tot + Cm_tot
 
                 # update end-of-period states
                 Mw = par.R*Aw[i,t] + incw[i,t] # total resources woman

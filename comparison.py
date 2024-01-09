@@ -18,8 +18,8 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 # settings for models to solve
 T = 8
 specs = {
-    #'model 1':{'latexname':'EGM1', 'par':{'γ':[0.0, 0.0],'sep_cost':[0.5,0.0],'sigma_love':0.4,'T':T,'num_A':20,'max_A':4.0,"num_power":15}},
-    'model 2':{'latexname':'EGM2', 'par':{'γ':[0.0, 0.0],'sep_cost':[0.5,0.0],'pr_h_change':0.2,'sigma_love':0.4,'T':T,'num_A':20,'max_A':4.0,"num_power":15}},
+    'model 1':{'latexname':'EGM1', 'par':{'γ':[0.0, 0.0],'sep_cost':[0.2,0.0],'sigma_love':0.4,'T':T,'num_A':20,'max_A':4.0,"num_power":15}},
+    'model 2':{'latexname':'EGM2', 'par':{'γ':[0.0, 0.0],'sep_cost':[0.2,0.0],'pension':0.1,'sigma_love':0.4,'T':T,'num_A':20,'max_A':4.0,"num_power":15}},
 }
 
 # solve different models (takes several minutes)
@@ -38,8 +38,8 @@ for name,spec in specs.items():
 ###################        
 #Policy Functions
 ###################
-cmaps = ('viridis',)#('viridis','gray')#
-model_list = ('model 2',)#('model 1','model 2')#
+cmaps = ('viridis','gray')#('viridis',)#
+model_list = ('model 1','model 2')#('model 2',)#
 
 
 #Points to consider
@@ -92,32 +92,59 @@ for var in var_list:
         y = getattr(model.sim,var);y = np.nanmean(y + nan,axis=0)
         ax.plot(y,marker=markers[i],linestyle=linestyles[i],linewidth=linewidth,label=model.spec['latexname']);
         ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power}, init_love={init_love}')
-                            
+plt.show()
+
 ###################################
 # Simulated path - partnership type
+################################### 
+fig, ax = plt.subplots() 
+ 
+colors=('blue','red','black') 
+rel_list=('mar','coh','single') 
+for j,var in enumerate(rel_list): 
+    for i,name in enumerate(model_list): 
+        model = models[name] 
+     
+        # pick out couples (if not the share of couples is plotted) 
+        I = model.sim.rel==j 
+        yt = np.zeros(I.shape) 
+        yt[I] = 1.0 
+     
+        # pick relevant variable for couples 
+        y = np.mean(yt,axis=0) 
+        ax.plot(y,color=colors[j],linestyle=linestyles[i],linewidth=linewidth,label=var);ax.legend() 
+ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power}, init_love={init_love}') 
+plt.show() 
+
+###################################
+# Simulated path - love by type
 ###################################
 fig, ax = plt.subplots()
 
-colors=('blue','red','black')
-rel_list=('mar','coh','single')
+colors=('blue','red')
+rel_list=('mar','coh')
 for j,var in enumerate(rel_list):
     for i,name in enumerate(model_list):
         model = models[name]
     
         # pick out couples (if not the share of couples is plotted)
-        I = model.sim.rel==j
-        yt = np.zeros(I.shape)
-        yt[I] = 1.0
+        I = model.sim.rel!=j
+        yw = model.par.grid_lovew[t][model.sim.love//par.num_lovem]
+        ym = model.par.grid_lovem[t][model.sim.love%par.num_lovew]
+        yw[I] = np.nan
+        ym[I] = np.nan
     
         # pick relevant variable for couples
-        y = np.mean(yt,axis=0)
-        ax.plot(y,color=colors[j],linestyle=linestyles[i],linewidth=linewidth,label=var);ax.legend()
+        y_w = np.nanmean(yw,axis=0);y_m = np.nanmean(ym,axis=0)
+        ax.plot(y_w,marker=markers[0],color=colors[j],linestyle=linestyles[i],linewidth=linewidth,label=var)
+        ax.plot(y_m,marker=markers[1],color=colors[j],linestyle=linestyles[i],linewidth=linewidth,label=var);ax.legend()
 ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power}, init_love={init_love}')
 plt.show()
+
 #####################################
 #Cohabitation - marriage analysis
 #####################################
-#model1 = models['model 1']
+model1 = models['model 1']
 model2 = models['model 2']
 shape_couple = (par.T,2,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A)
 V1,V2=np.zeros(shape_couple),np.zeros(shape_couple)
@@ -130,8 +157,8 @@ for t in range(par.T):
                         for iA in range(par.num_A): 
                    
                             idx=(t,rel,ih,iz,iP,iL,iA)
-                            #V1[idx]=par.grid_power[iP]      *model1.sol.p_Vw_remain_couple[idx]+\
-                            #        (1.0-par.grid_power[iP])*model1.sol.p_Vm_remain_couple[idx]
+                            V1[idx]=par.grid_power[iP]      *model1.sol.p_Vw_remain_couple[idx]+\
+                                    (1.0-par.grid_power[iP])*model1.sol.p_Vm_remain_couple[idx]
                                     
                             V2[idx]=par.grid_power[iP]      *model2.sol.n_Vw_remain_couple[idx]+\
                                     (1.0-par.grid_power[iP])*model2.sol.n_Vm_remain_couple[idx]
@@ -142,7 +169,7 @@ plt.plot(V1[t,0,ih,iz,:,iL,:]-V1[t,1,ih,iz,:,iL,:])
 plt.show()
 plt.plot(V1[t,0,ih,iz,:,iL,:].T-V1[t,1,ih,iz,:,iL,:].T)
 plt.show()
-#plt.hist(par.grid_power[model.sim.power_idx_lag[model.sim.power_idx!=-1]]-par.grid_power[model.sim.power_idx[model.sim.power_idx!=-1]])
-#print('Model 1 Vmar-Vcoh is {}'.format((V1[:-1,0,:,:,:,:,:]-V1[:-1,1,:,:,:,:,:]>0.0).mean()))
-print('Model 2 Vmar-Vcoh is {}'.format((V2[:-1,0,:,:,:,:,:]-V2[:-1,1,:,:,:,:,:]>0.0).mean()))
+
+print('Model 1 Vmar-Vcoh is {}'.format((V1[:model.par.Tr-1,0,:,:,:,:,:]-V1[:model.par.Tr-1,1,:,:,:,:,:]>=0.0).mean()))
+print('Model 2 Vmar-Vcoh is {}'.format((V2[:model.par.Tr-1,0,:,:,:,:,:]-V2[:model.par.Tr-1,1,:,:,:,:,:]>=0.0).mean()))
 
