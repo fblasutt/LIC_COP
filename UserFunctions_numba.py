@@ -331,7 +331,7 @@ def create(ufunc):
     """
 
     @njit
-    def upperenvelope(grid_a,m_vec,c_vec,inv_w_vec_w,inv_w_vec_m,power,grid_m,c_ast_vec,v_ast_vec_w,v_ast_vec_m,v_ast_vec_c,*args):
+    def upperenvelope(grid_a,m_vec,c_vec,inv_w_vec_w,inv_w_vec_m,power,grid_m,c_ast_vec,v_ast_vec_w,v_ast_vec_m,v_ast_vec_c,v_div,v_remain,*args):
         """ upperenvelope function
         
         Args:
@@ -435,13 +435,15 @@ def create(ufunc):
                     v_guess=power*v_guess_w+(1.0-power)*v_guess_m
                     
                     # oooo. update
-                    if v_guess > v_ast_vec[im]:
+                    if (v_guess > v_ast_vec[im]): v_remain[im] = v_guess
+                    if (v_guess > v_ast_vec[im]) & (v_guess>=v_div[im]):
                         v_ast_vec[im] = v_guess
                         c_ast_vec[im] = c_guess[0]
                         
                         # update utility for the couple
                         v_ast_vec_w[im] = v_guess_w
                         v_ast_vec_m[im] = v_guess_m                      
-                        v_ast_vec_c[im]=power*v_ast_vec_w[im]+(1.0-power)*v_ast_vec_m[im]
+                        v_ast_vec_c[im]=  v_guess
+                        v_div[im]      =  v_guess
     
     return upperenvelope

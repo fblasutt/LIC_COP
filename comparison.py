@@ -46,7 +46,7 @@ model_list = ('model 1','model 2')#('model 2',)#
 par = models['model 2'].par
 t = 0; iz=8; ih=1; iL=5#par.num_love//2
  
-for var in ('p_Vw_remain_couple','n_C_tot_remain_couple','power','remain_WLP'):
+for var in ('p_Vw_remain_couple','n_C_tot_remain_couple','remain_WLP'):
 
     fig = plt.figure();ax = plt.axes(projection='3d')
             
@@ -60,7 +60,7 @@ for var in ('p_Vw_remain_couple','n_C_tot_remain_couple','power','remain_WLP'):
         ax.plot_surface(X, Y, Z,cmap=cmaps[i],alpha=alpha);
         if var == 'power':  ax.set(zlim=[0.0,1.0])
         ax.set(xlabel='power',ylabel='$A$');ax.set_title(f'{var}')
-        
+plt.show()    
 ####################################    
 # Simulated Path - general variables
 ####################################
