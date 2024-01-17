@@ -38,11 +38,6 @@ class HouseholdModelClass(EconModelClass):
         par.λ = 0.19 #elasticity betwen money and time in public good
         par.tb = 0.2 #time spend on public goods by singles
         
-
-        ####################
-        # state variables
-        #####################
-        
         par.T = 10 # terminal age
         par.Tr = 6 # age at retirement
         
@@ -79,96 +74,18 @@ class HouseholdModelClass(EconModelClass):
         # simulation
         par.seed = 9210;par.simT = par.T;par.simN = 20_000
         
-    def allocate(self):
-        par = self.par;sol = self.sol;sim = self.sim;self.setup_grids()
-
-        # setup grids
-        par.simT = par.T
-         
-        # singles: value functions (vf), consumption, marg util
-        shape_singlew = (par.T,par.num_h,par.num_zw,par.num_A)
-        shape_singlem = (par.T,1        ,par.num_zm,par.num_A)
-        sol.Vw_single = np.nan + np.ones(shape_singlew) #vf in t
-        sol.Vm_single = np.nan + np.ones(shape_singlem) #vf in t
-        sol.Cw_tot_single = np.nan + np.ones(shape_singlew) #priv+tot cons
-        sol.Cm_tot_single = np.nan + np.ones(shape_singlem) #priv+tot cons
-
-        # couples: value functions (vf), consumption, marg util, bargaining power
-        shape_couple = (par.T,2,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A) # 2 is for mar/coh
-        sol.Vw_remain_couple = np.nan + np.ones(shape_couple) #vf|couple
-        sol.Vm_remain_couple = np.nan + np.ones(shape_couple) #vf|couple
-        sol.p_Vw_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+part)
-        sol.p_Vm_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+part)
-        sol.p_Vc_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+part)
-        sol.n_Vw_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+no part)
-        sol.n_Vm_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+no part)     
-        sol.n_Vc_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+no part)     
-        sol.p_C_tot_remain_couple = np.nan + np.ones(shape_couple)#cons|(couple+part)
-        sol.n_C_tot_remain_couple = np.nan + np.ones(shape_couple)#cons|(couple+nopart)
-        sol.p_rel_remain = np.zeros(shape_couple,dtype=np.int_)#cons|(couple+part)
-        sol.n_rel_remain = np.zeros(shape_couple,dtype=np.int_)#cons|(couple+part)
-        sol.remain_WLP = np.ones(shape_couple)#pr. of participation|couple   
-
-        sol.p_V_remain = np.nan + np.ones((*shape_couple,len(par.grid_title))) #vf in t
-        sol.n_V_remain = np.nan + np.ones((*shape_couple,len(par.grid_title))) #vf in t        
-        sol.Vw_couple = np.nan + np.ones((*shape_couple,len(par.grid_title))) #vf in t
-        sol.Vm_couple = np.nan + np.ones((*shape_couple,len(par.grid_title))) #vf in t
-        sol.power =  np.nan +np.ones((*shape_couple,len(par.grid_title)))                  #barg power value
-
-        # pre-compute optimal consumption allocation: private and public
-        shape_pre = (par.num_wlp,par.num_power,par.num_Ctot)
-        sol.pre_Ctot_Cw_priv = np.nan + np.ones(shape_pre)
-        sol.pre_Ctot_Cm_priv = np.nan + np.ones(shape_pre)
-        sol.pre_Ctot_C_pub = np.nan + np.ones(shape_pre)
-        
-        # simulation
-        shape_sim = (par.simN,par.simT)
-        sim.C_tot = np.nan + np.ones(shape_sim)                # total consumption
-        sim.iz = np.ones(shape_sim,dtype=np.int_)              # index of income shocks 
-        sim.A = np.nan + np.ones(shape_sim)                    # total assets (m+w)
-        sim.Aw = np.nan + np.ones(shape_sim)                   # w's assets
-        sim.Am = np.nan + np.ones(shape_sim)                   # m's assets
-        sim.rel = np.ones(shape_sim,dtype=np.int_)    # mar (0), coh (1), single (2)
-        sim.rel_lag = np.ones(shape_sim,dtype=np.int_)# mar (0), coh (1), single (2)
-        sim.power = np.nan + np.ones(shape_sim)                # barg power
-        sim.power_lag = np.ones(shape_sim)                     # barg power index
-        sim.love = np.ones(shape_sim,dtype=np.int_)            # love
-        sim.incw = np.nan + np.ones(shape_sim)                 # w's income
-        sim.incm = np.nan + np.ones(shape_sim)                 # m's income
-        sim.WLP = np.zeros(shape_sim,dtype=np.int_)             # w's labor participation
-        sim.ih = np.ones(shape_sim,dtype=np.int_)              # w's human capital
-
-        # shocks
-        np.random.seed(par.seed)
-        sim.shock_love = np.random.random_sample((par.simN,par.simT))#love
-        sim.shock_z=np.random.random_sample((par.simN,par.simT))     #income
-        sim.shock_taste=np.random.random_sample((par.simN,par.simT)) #taste shock
-        sim.shock_h=np.random.random_sample((par.simN,par.simT))     #human capital
-
-        # initial distribution
-        sim.init_ih = np.zeros(par.simN,dtype=np.int_)                    #initial w's human capital
-        sim.A[:,0] = par.grid_A[0] + np.zeros(par.simN)                   #total assetes
-        # sim.Aw[:,0] = par.div_A_share * sim.A[:,0]                        #w's assets
-        # sim.Am[:,0] = (1.0 - par.div_A_share) * sim.A[:,0]                #m's assets
-        sim.init_rel =    np.ones(par.simN,dtype=np.int_)                  #mar (0), coh (1), single (2)
-        sim.init_power =  0.5**np.ones(par.simN)                   #barg power 
-        sim.init_lovew = np.ones(par.simN,dtype=np.int_)**par.num_lovew//2#w's initial love
-        sim.init_lovem = np.ones(par.simN,dtype=np.int_)**par.num_lovem//2#m's initial love
-        sim.init_love = sim.init_lovew*par.num_zm+sim.init_lovem          #initial love
-        sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2       #w's initial income 
-        sim.init_zm = np.ones(par.simN,dtype=np.int_)*par.num_zm//2       #m's initial income
-        sim.init_z  = sim.init_zw*par.num_zm+sim.init_zm                  #    initial income
+        par.grid_title   = np.array([0.4,0.5,0.6])
+        par.grid_comty   = np.array([0.5]) 
         
     def setup_grids(self):
         par = self.par
         
+        
         # wealth. Single grids are such to avoid interpolation
-        par.grid_A  = nonlinspace(0.0,par.max_A,par.num_A,1.1)#np.linspace(0.0,par.max_A,par.num_A)
+        par.grid_A  = nonlinspace(0.0,par.max_A,par.num_A,1.1)#np.linspace(0.0,par.max_A,par.num_A)#
         par.grid_Aw =  par.grid_A; par.grid_Am =  par.grid_A
 
         #grid of asset division upon separation: title-based or community-property
-        par.grid_title   = np.array([0.5,0.5,0.5])
-        par.grid_comty   = np.array([0.5])
         par.comty_regime = np.array([True,False])#community (as opopsed to title) regime for mar (0) and coh (1)
         
         # women's human capital grid plus transition if w working (p) or not (n)
@@ -203,6 +120,85 @@ class HouseholdModelClass(EconModelClass):
         par.grid_zw,par.Π_zw= usr.labor_income(par.t0w,par.t1w,par.t2w,par.T,par.Tr,par.σzw,par.σ0zw,par.num_zw,par.pension)
         par.grid_zm,par.Π_zm= usr.labor_income(par.t0m,par.t1m,par.t2m,par.T,par.Tr,par.σzm,par.σ0zm,par.num_zm,par.pension)
         par.Π=[np.kron(par.Π_zw[t],par.Π_zm[t]) for t in range(par.T-1)] # couples trans matrix    
+        
+    def allocate(self):
+        par = self.par;sol = self.sol;sim = self.sim;self.setup_grids()
+
+        # setup grids
+        par.simT = par.T
+         
+        # singles: value functions (vf), consumption, marg util
+        shape_singlew = (par.T,par.num_h,par.num_zw,par.num_A)
+        shape_singlem = (par.T,1        ,par.num_zm,par.num_A)
+        sol.Vw_single = np.nan + np.ones(shape_singlew) #vf in t
+        sol.Vm_single = np.nan + np.ones(shape_singlem) #vf in t
+        sol.Cw_tot_single = np.nan + np.ones(shape_singlew) #priv+tot cons
+        sol.Cm_tot_single = np.nan + np.ones(shape_singlem) #priv+tot cons
+
+        # couples: value functions (vf), consumption, marg util, bargaining power
+        shape_couple = (par.T,2,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A) # 2 is for mar/coh
+        sol.Vw_remain_couple = np.nan + np.ones(shape_couple) #vf|couple
+        sol.Vm_remain_couple = np.nan + np.ones(shape_couple) #vf|couple
+        sol.p_Vw_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+part)
+        sol.p_Vm_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+part)
+        sol.p_Vc_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+part)
+        sol.n_Vw_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+no part)
+        sol.n_Vm_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+no part)     
+        sol.n_Vc_remain_couple = np.nan + np.ones(shape_couple)#vf|(couple+no part)     
+        sol.p_C_tot_remain_couple = np.nan + np.ones(shape_couple)#cons|(couple+part)
+        sol.n_C_tot_remain_couple = np.nan + np.ones(shape_couple)#cons|(couple+nopart)
+        sol.p_rel_remain = np.zeros(shape_couple,dtype=np.int_)#cons|(couple+part)
+        sol.n_rel_remain = np.zeros(shape_couple,dtype=np.int_)#cons|(couple+part)
+        sol.remain_WLP = np.ones(shape_couple)#pr. of participation|couple   
+
+        # all values below have one last dimension relted to # of asset division at separation
+        sol.p_V_division = -1e10*np.ones((*shape_couple,len(par.grid_title))) #vf in t
+        sol.n_V_division = -1e10*np.ones((*shape_couple,len(par.grid_title))) #vf in t        
+        sol.Vw_couple = np.nan + np.ones((*shape_couple,len(par.grid_title))) #vf in t
+        sol.Vm_couple = np.nan + np.ones((*shape_couple,len(par.grid_title))) #vf in t
+        sol.power =  np.nan +np.ones((*shape_couple,len(par.grid_title)))     #barg power value
+
+        # pre-compute optimal consumption allocation: private and public
+        shape_pre = (par.num_wlp,par.num_power,par.num_Ctot)
+        sol.pre_Ctot_Cw_priv = np.nan + np.ones(shape_pre)
+        sol.pre_Ctot_Cm_priv = np.nan + np.ones(shape_pre)
+        sol.pre_Ctot_C_pub = np.nan + np.ones(shape_pre)
+        
+        # simulation
+        shape_sim = (par.simN,par.simT)
+        sim.C_tot = np.nan + np.ones(shape_sim)                # total consumption
+        sim.iz = np.ones(shape_sim,dtype=np.int_)              # index of income shocks 
+        sim.A = np.nan + np.ones(shape_sim)                    # total assets (m+w)
+        sim.Aw = np.nan + np.ones(shape_sim)                   # w's assets
+        sim.Am = np.nan + np.ones(shape_sim)                   # m's assets
+        sim.rel = np.ones(shape_sim,dtype=np.int_)    # mar (0), coh (1), single (2)
+        sim.rel_lag = np.ones(shape_sim,dtype=np.int_)# mar (0), coh (1), single (2)
+        sim.power = np.nan + np.ones(shape_sim)                # barg power
+        sim.power_lag = np.ones(shape_sim)                     # barg power index
+        sim.love = np.ones(shape_sim,dtype=np.int_)            # love
+        sim.incw = np.nan + np.ones(shape_sim)                 # w's income
+        sim.incm = np.nan + np.ones(shape_sim)                 # m's income
+        sim.WLP = np.zeros(shape_sim,dtype=np.int_)             # w's labor participation
+        sim.ih = np.ones(shape_sim,dtype=np.int_)              # w's human capital
+
+        # shocks
+        np.random.seed(par.seed)
+        sim.shock_love = np.random.random_sample((par.simN,par.simT))#love
+        sim.shock_z=np.random.random_sample((par.simN,par.simT))     #income
+        sim.shock_taste=np.random.random_sample((par.simN,par.simT)) #taste shock
+        sim.shock_h=np.random.random_sample((par.simN,par.simT))     #human capital
+
+        # initial distribution
+        sim.init_ih = np.zeros(par.simN,dtype=np.int_)                    #initial w's human capital
+        sim.A[:,0] = par.grid_A[0] + np.zeros(par.simN)                   #total assetes
+        sim.init_rel =    np.ones(par.simN,dtype=np.int_)                  #mar (0), coh (1), single (2)
+        sim.init_power =  0.5**np.ones(par.simN)                   #barg power 
+        sim.init_lovew = np.ones(par.simN,dtype=np.int_)**par.num_lovew//2#w's initial love
+        sim.init_lovem = np.ones(par.simN,dtype=np.int_)**par.num_lovem//2#m's initial love
+        sim.init_love = sim.init_lovew*par.num_zm+sim.init_lovem          #initial love
+        sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2       #w's initial income 
+        sim.init_zm = np.ones(par.simN,dtype=np.int_)*par.num_zm//2       #m's initial income
+        sim.init_z  = sim.init_zw*par.num_zm+sim.init_zm                  #    initial income
                         
     def solve(self):
 
@@ -433,19 +429,19 @@ def solve_remain_couple_egm(par,sol,t):
                                 n_C_tot[idx] = n_res.copy()
                                 n_Vw[idx],n_Vm[idx]=usr.couple_time_utility(n_C_tot[idx],par,sol,iP,0,love,pars,γ)
                             else:#retired: periods before last
-                                v_guess=-1e10*np.ones(par.num_A)
-                                compute_couple(par,sol,t,idx,pars,nEVw[...,0],nEVm[...,0],0,n_res,love,v_guess,v_div,n_C_tot,n_Vw,n_Vm,n_Vc)
+                                v_guess_division=-1e10*np.ones(par.num_A)
+                                compute_couple(par,sol,t,idx,pars,nEVw[...,0],nEVm[...,0],0,n_res,love,v_guess_division,v_div,n_C_tot,n_Vw,n_Vm,n_Vc)
                                                         
                             wlp[idx]=0.0;p_Vm[idx]=p_Vw[idx]=-1e10;Vw[idx],Vm[idx]=n_Vw[idx],n_Vm[idx];p_rel[idx]=n_rel[idx]=rel
                                                                             
                         else:#periods before retirement
                                 
-                            n_v_guess=-1e10*np.ones(par.num_A);p_v_guess=-1e10*np.ones(par.num_A)
+                            n_v_guess_division=-1e10*np.ones(par.num_A);p_v_guess_division=-1e10*np.ones(par.num_A)
                             for div in range(len(sep_grid)):#loop over asset division upon separation
                             
                                 # compute consumption* and util given partecipation (0/1). last 4 arguments below are output at iz,iL,iP
-                                compute_couple(par,sol,t,idx,pars,pEVw[...,div],pEVm[...,div],1,p_res,love,p_v_guess,sol.p_V_remain[t,...,div],p_C_tot,p_Vw,p_Vm,p_Vc) # participation 
-                                compute_couple(par,sol,t,idx,pars,nEVw[...,div],nEVm[...,div],0,n_res,love,n_v_guess,sol.n_V_remain[t,...,div],n_C_tot,n_Vw,n_Vm,n_Vc) # no participation 
+                                compute_couple(par,sol,t,idx,pars,pEVw[...,div],pEVm[...,div],1,p_res,love,p_v_guess_division,sol.p_V_division[t,...,div],p_C_tot,p_Vw,p_Vm,p_Vc) # participation 
+                                compute_couple(par,sol,t,idx,pars,nEVw[...,div],nEVm[...,div],0,n_res,love,n_v_guess_division,sol.n_V_division[t,...,div],n_C_tot,n_Vw,n_Vm,n_Vc) # no participation 
                                                                    
                             #if cohabiting, do the cohabitation - marriage choice and update consumption 
                             if rel==1: cohabit(idx,p_rel,p_Vc,p_Vw,p_Vm,p_C_tot)
@@ -453,7 +449,7 @@ def solve_remain_couple_egm(par,sol,t):
       
                             # compute the Pr. of of labor part. (wlp) + before-taste-shock util Vw and Vm
                             before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm)
-                       
+                    
                     if (t<par.Tr):  #Eventual rebargaining + separation decisions happen below, *if not retired*
                         for iA in range(par.num_A):        
                             for div in range(len(sep_grid_div)):#loop over asset division upon separation
@@ -466,15 +462,15 @@ def solve_remain_couple_egm(par,sol,t):
                                 Aw=sep_grid_div[div]      *par.grid_A[iA]*(1.0-par.sep_cost[rel])      #wealth if separation, w
                                 Am=(1.0-sep_grid_div[div])*par.grid_A[iA]*(1.0-par.sep_cost[rel])      #wealth if separation, m
                                 list_single = (linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,ih,iz//par.num_zm],Aw),#single
-                                               linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,0,iz%par.num_zw]  ,Am))#list
+                                               linear_interp.interp_1d(par.grid_Am,sol.Vm_single[t,0,iz%par.num_zw]  ,Am))#list
                                                    
                                 check_participation_constraints(par,sol.power,par.grid_power,list_raw,list_single,idxx,list_couple,iswomen)   
-                                                               
+                                                    
     if (t>=par.Tr):sol.Vw_couple[t][...,0] = Vw.copy(); sol.Vm_couple[t][...,0] = Vm.copy() #copy utility if retired                  
     return (Vw,Vm,p_Vw,p_Vm,p_Vc,n_Vw,n_Vm,n_Vc,p_C_tot,n_C_tot,wlp,p_rel,n_rel) # return a tuple
        
 @njit    
-def compute_couple(par,sol,t,idx,pars2,EVw,EVm,part,res,love,v_guess,v_remain,C_tot,Vw,Vm,Vc): 
+def compute_couple(par,sol,t,idx,pars2,EVw,EVm,part,res,love,v_guess_division,v_given_division,C_tot,Vw,Vm,Vc): 
  
     # indexes & initialization 
     idz=idx[:-1];iP=idx[3];power = par.grid_power[iP];γ=par.γ[idx[0]]
@@ -489,28 +485,32 @@ def compute_couple(par,sol,t,idx,pars2,EVw,EVm,part,res,love,v_guess,v_remain,C_
  
     if np.any(np.diff(R_now)<0):#apply upperenvelope + enforce no borrowing constraint 
  
-        upper_envelope(par.grid_A,R_now,C_pd,par.β*EVw[idz],par.β*EVm[idz],power,res,C_tot[idx],Vw[idx],Vm[idx],Vc[idx],v_guess,v_remain[idx],*pars) 
+        upper_envelope(par.grid_A,R_now,C_pd,par.β*EVw[idz],par.β*EVm[idz],power,res,C_tot[idx],Vw[idx],Vm[idx],Vc[idx],v_guess_division,v_given_division[idx],*pars) 
         
     else:#upperenvelope not necessary: enforce no borrowing constraint 
      
         # interpolate onto common beginning-of-period asset grid to get consumption 
-        linear_interp.interp_1d_vec(R_now,C_pd,res,C_tot[idx]) 
-        C_tot[idx] = np.minimum(C_tot[idx] , res) #...+ apply borrowing constraint 
+        ctemp=np.ones(C_tot[idx].shape)
+        linear_interp.interp_1d_vec(R_now,C_pd,res,ctemp) 
+        ctemp = np.minimum(ctemp , res) #...+ apply borrowing constraint 
      
         # compute the value function 
         Cw_priv, Cm_priv, C_pub =\
-            usr.intraperiod_allocation(C_tot[idx],par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP])  
+            usr.intraperiod_allocation(ctemp,par.grid_Ctot,sol.pre_Ctot_Cw_priv[part,iP],sol.pre_Ctot_Cm_priv[part,iP])  
              
-        linear_interp.interp_1d_vec(par.grid_A,par.β*EVw[idz],res-C_tot[idx],βEw) 
-        linear_interp.interp_1d_vec(par.grid_A,par.β*EVm[idz],res-C_tot[idx],βEm) 
+        linear_interp.interp_1d_vec(par.grid_A,par.β*EVw[idz],res-ctemp,βEw) 
+        linear_interp.interp_1d_vec(par.grid_A,par.β*EVm[idz],res-ctemp,βEm) 
         
-        improvement=(power*Vw[idx]+(1.0-power)*Vm[idx]>v_guess)#if current asset division deliver better util 
-             
-        Vw[idx][improvement] = (usr.util(Cw_priv,C_pub,*pars2,love[0],True,1.0-par.grid_wlp[part],γ)+βEw)[improvement]                   
-        Vm[idx][improvement] = (usr.util(Cm_priv,C_pub,*pars2,love[1],True,1.0-par.grid_wlp[part],γ)+βEm)[improvement] 
-        Vc[idx][improvement] = v_guess[improvement] = (power*Vw[idx]+(1.0-power)*Vm[idx])[improvement]  
-        v_remain[idx] = power*Vw[idx]+(1.0-power)*Vm[idx]
-       
+        temp_Vw = usr.util(Cw_priv,C_pub,*pars2,love[0],True,1.0-par.grid_wlp[part],γ)+βEw#w's util
+        temp_Vm = usr.util(Cm_priv,C_pub,*pars2,love[1],True,1.0-par.grid_wlp[part],γ)+βEm#m's util
+        v_given_division[idx] = power*temp_Vw+(1.0-power)*temp_Vm #couple's util for a given asset div. if separation
+        
+        #if improvement in coupl's U for current asset div., update value functions/consumption
+        improvement=(v_given_division[idx]>=v_guess_division)#if current asset division deliver better util         
+        Vw[idx][improvement] = temp_Vw[improvement];Vm[idx][improvement] = temp_Vm[improvement]
+        Vc[idx][improvement] = v_guess_division[improvement] = v_given_division[idx][improvement]
+        C_tot[idx][improvement] = ctemp[improvement]
+              
 @njit
 def before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm):
  
@@ -694,11 +694,11 @@ def simulate_lifecycle(sim,sol,par):
                     p_Vc = sol.p_Vc_remain_couple[t,:,*idx[2:]] if wlp[i,t] else sol.n_Vc_remain_couple[t,:,*idx[2:]]
                     M_Vc = interp2d(p_Vc[0],power[i,t],A[i,t])
                     C_Vc = interp2d(p_Vc[1],power[i,t],A[i,t])
-                    rel[i,t] = C_Vc>M_Vc
+                    rel[i,t] = C_Vc>M_Vc if t<par.Tr-2 else C_Vc>=M_Vc
                     
                 # optimal asset division in t+1 is divorce or breakup
                 sep_grid_div = par.grid_comty if (par.comty_regime[rel[i,t]])  else par.grid_title
-                v_division = sol.p_V_remain[idx] if wlp[i,t] else sol.n_V_remain[idx]  
+                v_division = sol.p_V_division[idx] if wlp[i,t] else sol.n_V_division[idx]  
                 v_couple_division= np.array([interp2d(v_division[...,j],power[i,t],A[i,t]) for j in range(len(sep_grid_div))])
                 w_asset_share = sep_grid_div[np.argmax(v_couple_division)]
                 

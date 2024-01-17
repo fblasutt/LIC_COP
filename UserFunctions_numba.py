@@ -331,7 +331,7 @@ def create(ufunc):
     """
 
     @njit
-    def upperenvelope(grid_a,m_vec,c_vec,inv_w_vec_w,inv_w_vec_m,power,grid_m,c_ast_vec,v_ast_vec_w,v_ast_vec_m,v_ast_vec_c,v_div,v_remain,*args):
+    def upperenvelope(grid_a,m_vec,c_vec,inv_w_vec_w,inv_w_vec_m,power,grid_m,c_ast_vec,v_ast_vec_w,v_ast_vec_m,v_ast_vec_c,v_guess_all_division,v_given_division,*args):
         """ upperenvelope function
         
         Args:
@@ -341,8 +341,12 @@ def create(ufunc):
             c_vec (numpy.ndarray): input, consumption vector from egm of length Na
             inv_w_vec (numpy.ndarray): input, post decision value-of-choice vector from egm of length Na
             grid_m (numpy.ndarray): input, common grid for cash-on-hand of length Nm
-            c_ast_vec (numpy.ndarray): output, consumption on common grid for cash-on-hand of length Nm
-            v_ast_vec (numpy.ndarray): output, value-of-choice on common grid for cash-on-hand of length Nm
+            c_ast_vec (numpy.ndarray): input-output, consumption on common grid for cash-on-hand of length Nm, *for any asset division*
+            v_ast_vec_w (numpy.ndarray): input-output, women's value-of-choice on common grid for cash-on-hand of length Nm, *for any asset division*
+            v_ast_vec_m (numpy.ndarray): input-output,   men's value-of-choice on common grid for cash-on-hand of length Nm, *for any asset division*
+            v_ast_vec_c (numpy.ndarray): input-output, coupl's value-of-choice on common grid for cash-on-hand of length Nm, *for any asset division*
+            v_guess_all_division  (numpy.ndarray): input-output, *guess*, or *current best* coupl's value-of-choice on common grid for cash-on-hand of length Nm, *for specific asset division*
+            v_given_division  (numpy.ndarray):     input-output, coupl's value-of-choice on common grid for cash-on-hand of length Nm, *for specific asset division*
             *args: additional arguments to the utility function
                     
         """
@@ -354,9 +358,6 @@ def create(ufunc):
         Na = grid_a.size
         Nm = grid_m.size
 
-        c_ast_vec[:] = 0
-        v_ast_vec = -np.inf*np.ones(c_ast_vec.shape)
-
         # constraint
         # the constraint is binding if the common m is smaller
         # than the smallest m implied by EGM step (m_vec[0])
@@ -364,16 +365,24 @@ def create(ufunc):
         im = 0 
         while im < Nm and grid_m[im] <= m_vec[0]: 
              
-            # a. consume all 
-            c_ast_vec[im] = grid_m[im]  
+            # a. value of choice, consume cash on hand
+            u_w,u_m = ufunc(grid_m[im:im+1],*args) 
+            temp_v_ast_vec_w = u_w[0] + inv_w_vec_w[0] 
+            temp_v_ast_vec_m = u_m[0] + inv_w_vec_m[0] 
  
-            # b. value of choice 
-            u_w,u_m = ufunc(c_ast_vec[im:im+1],*args) 
-            v_ast_vec_w[im] = u_w[0] + inv_w_vec_w[0] 
-            v_ast_vec_m[im] = u_m[0] + inv_w_vec_m[0] 
- 
-            v_ast_vec[im] = power*v_ast_vec_w[im] + (1.0-power)*v_ast_vec_m[im] 
-            v_ast_vec_c[im] = v_ast_vec[im]
+            # update the asset *division specific* couple's value function
+            v_given_division[im] = power*temp_v_ast_vec_w + (1.0-power)*temp_v_ast_vec_m
+            
+            # if better couple's U with current util, update
+            # *general* (not division specific) value functions and consumption
+            if (v_given_division[im]>=v_guess_all_division[im]):
+                
+                # b. store results
+                c_ast_vec[im] = grid_m[im]
+                v_ast_vec_w[im] = temp_v_ast_vec_w
+                v_ast_vec_m[im] = temp_v_ast_vec_m                    
+                v_ast_vec_c[im] = v_guess_all_division[im] = v_given_division[im]
+                
             im += 1 
             
         # upper envellope
@@ -435,15 +444,21 @@ def create(ufunc):
                     v_guess=power*v_guess_w+(1.0-power)*v_guess_m
                     
                     # oooo. update
-                    if (v_guess > v_ast_vec[im]): v_remain[im] = v_guess
-                    if (v_guess > v_ast_vec[im]) & (v_guess>=v_div[im]):
-                        v_ast_vec[im] = v_guess
-                        c_ast_vec[im] = c_guess[0]
+                    
+                    # update the asset *division specific* couple's value function
+                    if (v_guess > v_given_division[im]): 
                         
-                        # update utility for the couple
-                        v_ast_vec_w[im] = v_guess_w
-                        v_ast_vec_m[im] = v_guess_m                      
-                        v_ast_vec_c[im]=  v_guess
-                        v_div[im]      =  v_guess
+                        v_given_division[im] = v_guess
+                    
+                        # if better couple's U with current util, update
+                        # *general* (not division specific) value functions and consumption
+                        if (v_guess>=v_guess_all_division[im]):
+                            
+                            c_ast_vec[im] = c_guess[0]
+                            
+                            # update utility for the couple
+                            v_ast_vec_w[im] = v_guess_w
+                            v_ast_vec_m[im] = v_guess_m                      
+                            v_ast_vec_c[im] = v_guess_all_division[im] =  v_guess
     
     return upperenvelope
