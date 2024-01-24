@@ -19,7 +19,7 @@ class HouseholdModelClass(EconModelClass):
     def setup(self):
         par = self.par
         
-        par.unil = True # Unilateral divorce regime vs. mutual consent divorce     
+        par.unil = [True,True] # Unilateral divorce regime vs. mutual consent divorce     
         par.R = 1.03
         par.β = 1/1.03# Discount factor
         par.sep_cost = [0.1, 0.0] # share of wealth lost upon divorce (0), breakup (1) 
@@ -82,7 +82,7 @@ class HouseholdModelClass(EconModelClass):
         
         
         # wealth. Single grids are such to avoid interpolation
-        par.grid_A  = nonlinspace(0.0,par.max_A,par.num_A,1.1)#np.linspace(0.0,par.max_A,par.num_A)#
+        par.grid_A  = nonlinspace(0.0,par.max_A,par.num_A,1.5)#np.linspace(0.0,par.max_A,par.num_A)#
         par.grid_Aw =  par.grid_A; par.grid_Am =  par.grid_A
 
         #grid of asset division upon separation: title-based or community-property
@@ -180,6 +180,7 @@ class HouseholdModelClass(EconModelClass):
         sim.incm = np.nan + np.ones(shape_sim)                 # m's income
         sim.WLP = np.zeros(shape_sim,dtype=np.int_)             # w's labor participation
         sim.ih = np.ones(shape_sim,dtype=np.int_)              # w's human capital
+        sim.div = -np.ones(shape_sim,dtype=np.int_)              # asset's division decision
 
         # shocks
         np.random.seed(par.seed)
@@ -189,6 +190,7 @@ class HouseholdModelClass(EconModelClass):
         sim.shock_h=np.random.random_sample((par.simN,par.simT))     #human capital
 
         # initial distribution
+        sim.init_div =  np.ones(par.simN,dtype=np.int_)                   #initial asset division
         sim.init_ih = np.zeros(par.simN,dtype=np.int_)                    #initial w's human capital
         sim.A[:,0] = par.grid_A[0] + np.zeros(par.simN)                   #total assetes
         sim.init_rel =    np.ones(par.simN,dtype=np.int_)                  #mar (0), coh (1), single (2)
@@ -451,24 +453,42 @@ def solve_remain_couple_egm(par,sol,t):
                             before_taste_shock(par,p_Vc,n_Vc,p_Vw,n_Vw,p_Vm,n_Vm,idx,wlp,Vw,Vm)
                     
                     if (t<par.Tr):  #Eventual rebargaining + separation decisions happen below, *if not retired*
-                        for iA in range(par.num_A):        
+                        for iA in range(par.num_A):                    
+                            
+                            #First compute outside options
+                            list_single_all_div = outside_options(par,par.grid_A[iA],rel,sol.Vw_single[t,ih,iz//par.num_zm],sol.Vm_single[t,0,iz%par.num_zw])
+                                
                             for div in range(len(sep_grid_div)):#loop over asset division upon separation
-                                #TODO add here loop for assets division, Aw and Am should change                  
+              
                                 idxx = [(t,rel,ih,iz,i,iL,iA,div) for i in range(par.num_power)]               
                                 list_couple = (sol.Vw_couple, sol.Vm_couple)     #couple        list
                                 list_raw    = (Vw[rel,ih,iz,:,iL,iA],Vm[rel,ih,iz,:,iL,iA])        #remain-couple list
-                                iswomen     = (True,False)                                         #iswomen? in   list
                                 
-                                Aw=sep_grid_div[div]      *par.grid_A[iA]*(1.0-par.sep_cost[rel])      #wealth if separation, w
-                                Am=(1.0-sep_grid_div[div])*par.grid_A[iA]*(1.0-par.sep_cost[rel])      #wealth if separation, m
-                                list_single = (linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,ih,iz//par.num_zm],Aw),#single
-                                               linear_interp.interp_1d(par.grid_Am,sol.Vm_single[t,0,iz%par.num_zw]  ,Am))#list
+                                div_s = len(par.grid_title)//2 if par.comty_regime[rel] else div
+                                list_single = list_single_all_div[div_s]
                                                    
-                                check_participation_constraints(par,sol.power,par.grid_power,list_raw,list_single,idxx,list_couple,iswomen)   
-                                                    
+
+                                # Choose unilateral or mutual consent separation
+                                if par.unil[rel]:unil_sep_ren(par,sol.power,par.grid_power,list_raw,list_single,idxx,list_couple)
+                                else:         mutual_cons_sep(par,sol.power,par.grid_power,list_raw,list_single,idxx,list_single_all_div,div_s,list_couple)
+                                
     if (t>=par.Tr):sol.Vw_couple[t][...,0] = Vw.copy(); sol.Vm_couple[t][...,0] = Vm.copy() #copy utility if retired                  
     return (Vw,Vm,p_Vw,p_Vm,p_Vc,n_Vw,n_Vm,n_Vc,p_C_tot,n_C_tot,wlp,p_rel,n_rel) # return a tuple
        
+@njit
+def outside_options(par,A,rel,Vw_single,Vm_single):
+    
+    list_single_all_div = []
+    for div in range(len(par.grid_title)):
+        Aw=par.grid_title[div]      *A*(1.0-par.sep_cost[rel])      #wealth if separation, w
+        Am=(1.0-par.grid_title[div])*A*(1.0-par.sep_cost[rel])      #wealth if separation, m
+        list_single = (linear_interp.interp_1d(par.grid_Aw,Vw_single,Aw),#single
+                       linear_interp.interp_1d(par.grid_Am,Vm_single,Am))#list  
+   
+        list_single_all_div.append(list_single)
+   
+    return list_single_all_div
+              
 @njit    
 def compute_couple(par,sol,t,idx,pars2,EVw,EVm,part,res,love,v_guess_division,v_given_division,C_tot,Vw,Vm,Vc): 
  
@@ -536,8 +556,53 @@ def cohabit(idx,rel,Vc,Vw,Vm,C_tot):
     C_tot[idx][marry]= C_tot[idx_m][marry]
 
 @njit
-def check_participation_constraints(par,solpower,gridpower,list_raw,list_single,idx,
-                                    list_couple=(np.zeros((1,1)),),iswomen=(True,),nosim=True):
+def mutual_cons_sep(par,solpower,gridpower,list_raw,list_single,idx,list_single_all_div,div_s,
+                                    list_couple=(np.zeros((1,1)),),nosim=True):
+    
+    # surplus of marriage, then its min and max given states
+    Sw = [list_raw[0] - list_single_all_div[i][0] for i in range(len(par.grid_title))] 
+    Sm = [list_raw[1] - list_single_all_div[i][1] for i in range(len(par.grid_title))] 
+   
+    for iP,power in enumerate(gridpower):
+        
+        #1) w and m happy to stay in marriage
+        if (Sw[div_s][iP]>0) & (Sm[div_s][iP]>0): 
+            solpower[idx[iP]] = power #update power, below update value function
+            if nosim:no_power_change(list_couple,list_raw,idx,iP,power)
+        
+        #2) w and m both prefer divorce
+        if (Sw[div_s][iP]<0) & (Sm[div_s][iP]<0):
+            solpower[idx[iP]] = -1.0 #update power, below update value function
+            if nosim:divorce(list_couple,list_single,idx[iP])
+
+        #3) w wants divorce, m does not: try find agreement for mutual divorce
+        elif (Sw[div_s][iP]<0) & (Sm[div_s][iP]>0): 
+            
+            solpower[idx[iP]] = power #update power, below update value function
+            if nosim:no_power_change(list_couple,list_raw,idx,iP,power)
+            
+            for div in range(div_s-1,-1,-1):
+                if (Sw[div][iP]<0) & (Sm[div][iP]<0):
+                    solpower[idx[iP]] = -1.0 #update power, below update value function
+                    if nosim:divorce(list_couple,list_single_all_div[div],idx[iP])
+                    break
+                            
+        #4) m wants divorce, w does not: try find agreement for mutual divorce
+        else: 
+            
+            solpower[idx[iP]] = power #update power, below update value function
+            if nosim:no_power_change(list_couple,list_raw,idx,iP,power)
+            
+            for div in range(div_s+1,len(par.grid_title)):
+                if (Sw[div][iP]<0) & (Sm[div][iP]<0):
+                    solpower[idx[iP]] = -1.0 #update power, below update value function
+                    if nosim:divorce(list_couple,list_single_all_div[div],idx[iP])
+                    break
+
+    
+@njit
+def unil_sep_ren(par,solpower,gridpower,list_raw,list_single,idx,
+                                    list_couple=(np.zeros((1,1)),),nosim=True):
                  
     # surplus of marriage, then its min and max given states
     Sw = list_raw[0] - list_single[0] 
@@ -564,7 +629,7 @@ def check_participation_constraints(par,solpower,gridpower,list_raw,list_single,
         #2) no iP values consistent with marriage
         elif (max_Sw < 0.0) | (max_Sm < 0.0): 
             solpower[idx[iP]] = -1.0 #update power, below update value function
-            if nosim:divorce(list_couple,list_single,iswomen,idx[iP])
+            if nosim:divorce(list_couple,list_single,idx[iP])
                 
         #3) some iP are (invidivually) consistent with marriage: try rebargaining
         else:             
@@ -581,7 +646,7 @@ def check_participation_constraints(par,solpower,gridpower,list_raw,list_single,
             # 3.3) divorce: men (women) wants to leave & woman (men) not happy to shift some bargaining power
             elif ((power<Low_w) & (Sm_at_0_w <=0)) | ((power>Low_m) & (Sw_at_0_m <=0)):
                 solpower[idx[iP]] = -1.0  #update power, below update value function
-                if nosim:divorce(list_couple,list_single,iswomen,idx[iP])
+                if nosim:divorce(list_couple,list_single,idx[iP])
                 
             # 3.4) no-one wants to leave
             else: 
@@ -589,11 +654,10 @@ def check_participation_constraints(par,solpower,gridpower,list_raw,list_single,
                 if nosim:no_power_change(list_couple,list_raw,idx,iP,power)
 @njit
 def no_power_change(list_couple,list_raw,idx,iP,power):
-    for i,key in enumerate(list_couple): key[idx[iP]] = list_raw[i][iP]        
+    for i,key in enumerate(list_couple): key[idx[iP]] = list_raw[i][iP]  
 @njit
-def divorce(list_couple,list_single,iswomen,idx):    
-    for i,key in enumerate(list_couple):
-        key[idx]=list_single[i] if iswomen[i] else list_single[i]                
+def divorce(list_couple,list_single,idx):    
+    for i,key in enumerate(list_couple): key[idx]=list_single[i]         
 @njit
 def do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_i,low_i,low_0):    
     for i,key in enumerate(list_couple):
@@ -647,7 +711,7 @@ def simulate_lifecycle(sim,sol,par):
     
     # unpacking some values to help numba optimize
     A=sim.A;Aw=sim.Aw;Am=sim.Am;rel=sim.rel;power=sim.power;C_tot=sim.C_tot;rel_lag=sim.rel_lag;power_lag=sim.power_lag
-    love=sim.love;shock_love=sim.shock_love;iz=sim.iz;wlp=sim.WLP;incw=sim.incw;incm=sim.incm;ih=sim.ih;
+    love=sim.love;shock_love=sim.shock_love;iz=sim.iz;wlp=sim.WLP;incw=sim.incw;incm=sim.incm;ih=sim.ih;div=sim.div
     
     interp2d = lambda a,b,c : linear_interp.interp_2d(par.grid_power,par.grid_A,a,b,c)
     interp1d = lambda a,b   : linear_interp.interp_1d(par.grid_A,               a,b) 
@@ -656,12 +720,18 @@ def simulate_lifecycle(sim,sol,par):
         for t in range(par.simT):
               
             # Copy variables from t-1 or initial condition. Initial (t>0) assets: preamble (later in the simulation)   
+            Π = par.Πh_p if wlp[i,t-1] else par.Πh_n 
+            ih[i,t] = usr.mc_simulate(ih[i,t-1],Π,sim.shock_h[i,t])                  if t>0 else sim.init_ih[i]
             rel_lag[i,t] = rel[i,t-1]                                                if t>0 else sim.init_rel[i]
             power_lag[i,t] = power[i,t-1]                                            if t>0 else sim.init_power[i]
             love[i,t] = usr.mc_simulate(love[i,t-1],par.Πl[t-1],shock_love[i,t])     if t>0 else sim.init_love[i]
-            iz[i,t] = usr.mc_simulate(iz[i,t-1],par.Π[t-1],sim.shock_z[i,t])         if t>0 else sim.init_z[i]
-            Π = par.Πh_p if wlp[i,t-1] else par.Πh_n 
-            ih[i,t] = usr.mc_simulate(ih[i,t-1],Π,sim.shock_h[i,t])                  if t>0 else sim.init_ih[i]
+            iz[i,t] = usr.mc_simulate(iz[i,t-1],par.Π[t-1],sim.shock_z[i,t])         if t>0 else sim.init_z[i] 
+            
+            if (t==0) & (rel_lag[i,t]<2): 
+                sep_grid_div = par.grid_comty if (par.comty_regime[rel[i,t]])  else par.grid_title
+                div[i,t]=0                    if (par.comty_regime[rel[i,t]])  else sim.init_div[i]
+                Aw[i,t] = sep_grid_div[div[i,t]]*A[i,t]*(1.0-par.sep_cost[rel[i,t]])
+                Am[i,t] = (1.0-sep_grid_div[div[i,t]])*A[i,t]*(1.0-par.sep_cost[rel[i,t]])
 
             # indices and resources
             idx = (t,rel_lag[i,t],ih[i,t],iz[i,t],slice(None),love[i,t]);iz_w=iz[i,t]//par.num_zm;iz_m=iz[i,t]%par.num_zw
@@ -677,7 +747,11 @@ def simulate_lifecycle(sim,sol,par):
                 list_raw    = (np.array([interp1d(sol.Vw_remain_couple[idx][iP],A[i,t]) for iP in range(par.num_power)]),
                                np.array([interp1d(sol.Vm_remain_couple[idx][iP],A[i,t]) for iP in range(par.num_power)]))
 
-                check_participation_constraints(par,power,np.array([power_lag[i,t]]),list_raw,list_single,[(i,t)],nosim=False)
+                if par.unil[rel_lag[i,t]]:#do rebargaining/separation with limited commitment
+                    unil_sep_ren(par,power,np.array([power_lag[i,t]]),list_raw,list_single,[(i,t)],nosim=False)
+                else:#separation decision according to full commitment
+                    list_single_all_div = outside_options(par,A[i,t],rel_lag[i,t],sol.Vw_single[t,ih[i,t],iz_w],sol.Vm_single[t,0,iz_m])
+                    mutual_cons_sep(par,power,np.array([power_lag[i,t]]),list_raw,list_single,[(i,t)],list_single_all_div,div[i,t],nosim=False)
                              
                 rel[i,t] = 2 if power[i,t] < 0.0 else rel_lag[i,t] # partnership status: divorce is coded as -1. to be updated if couple
                     
@@ -700,8 +774,8 @@ def simulate_lifecycle(sim,sol,par):
                 sep_grid_div = par.grid_comty if (par.comty_regime[rel[i,t]])  else par.grid_title
                 v_division = sol.p_V_division[idx] if wlp[i,t] else sol.n_V_division[idx]  
                 v_couple_division= np.array([interp2d(v_division[...,j],power[i,t],A[i,t]) for j in range(len(sep_grid_div))])
-                w_asset_share = sep_grid_div[np.argmax(v_couple_division)]
-                
+                if t< par.simT-1: div[i,t+1] = np.argmax(v_couple_division)
+                               
                 # optimal consumption allocation if couple (note use of the updated index)
                 sol_C_tot = sol.p_C_tot_remain_couple[idx] if wlp[i,t] else sol.n_C_tot_remain_couple[idx] 
                 C_tot[i,t] = interp2d(sol_C_tot,power[i,t],A[i,t])
@@ -709,8 +783,8 @@ def simulate_lifecycle(sim,sol,par):
                 # update end-of-period states
                 M_resources = usr.resources_couple(par,t,ih[i,t],iz[i,t],A[i,t])[wlp[i,t]]
                 if t< par.simT-1:A[i,t+1] = M_resources - C_tot[i,t]#
-                if t< par.simT-1:Aw[i,t+1] =       w_asset_share*A[i,t]*(1.0-par.sep_cost[rel[i,t]])# in case of divorce 
-                if t< par.simT-1:Am[i,t+1] = (1.0-w_asset_share)*A[i,t]*(1.0-par.sep_cost[rel[i,t]])# in case of divorce 
+                if t< par.simT-1:Aw[i,t+1] =       sep_grid_div[div[i,t+1]]*A[i,t+1]*(1.0-par.sep_cost[rel[i,t]])# in case of divorce 
+                if t< par.simT-1:Am[i,t+1] = (1.0-sep_grid_div[div[i,t+1]])*A[i,t+1]*(1.0-par.sep_cost[rel[i,t]])# in case of divorce 
                
             else: # single
                

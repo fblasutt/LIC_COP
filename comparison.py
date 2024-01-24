@@ -18,8 +18,8 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 # settings for models to solve
 T = 8
 specs = {
-    #'model 1':{'latexname':'EGM1', 'par':{'γ':[0.0, 0.0],'sep_cost':[0.0,0.2],'grid_title':np.array([0.5]),'sigma_love':0.4,'T':T,'num_A':20,'max_A':8.0,"num_power":15}},
-    'model 2':{'latexname':'EGM2', 'par':{'γ':[0.0, 0.0],'sep_cost':[0.0,0.2],'grid_title':np.array([0.5,0.4,0.6]),'sigma_love':0.4,'T':T,'num_A':20,'max_A':8.0,"num_power":15}},
+    'model 1':{'latexname':'EGM1', 'par':{'γ':[0.0, 0.0],'unil':[False,True],'sep_cost':[0.0,0.2],'grid_title':np.array([0.4,0.5,0.6]),'sigma_love':0.4,'T':T,'num_A':20,'max_A':6.0,"num_power":15}},
+    'model 2':{'latexname':'EGM2', 'par':{'γ':[0.0, 0.0],'unil':[True,True],'sep_cost':[0.0,0.2],'grid_title':np.array([0.4,0.5,0.6]),'sigma_love':0.4,'T':T,'num_A':20,'max_A':6.0,"num_power":15}},
 }
 
 # solve different models (takes several minutes)
@@ -38,13 +38,13 @@ for name,spec in specs.items():
 ###################        
 #Policy Functions
 ###################
-cmaps = ('viridis',)#('viridis','gray')#
-model_list =('model 2',)#('model 1','model 2')# 
+cmaps = ('viridis','gray')#('viridis',)#
+model_list =('model 1','model 2')#('model 2',)# 
 
 
 #Points to consider
-par = models['model 2'].par
-t = 4; iz=8; ih=1; iL=5#par.num_love//2
+par = models['model 1'].par
+t =0; iz=8; ih=1; iL=5#par.num_love//2
  
 for var in ('p_Vw_remain_couple','p_C_tot_remain_couple','remain_WLP'):
 
