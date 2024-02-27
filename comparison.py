@@ -3,6 +3,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import Bargaining_numba as brg
 import setup
+import matplotlib.colors as colorss
 mar=setup.mar;coh=setup.coh
 
 # plot style
@@ -16,11 +17,14 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
 # settings for models to solve
-T = 8
+T = 60
+xc=np.array([0.308232  , 0.00883859, 1.82712902, 0.33920033, 0.40122403] )
+xc=np.array([0.72363445, 0.00241628, 0.01908615, 0.51386287, 0.39605553])
 specs = {
-    'model 1':{'latexname':'EGM1', 'par':{'γ':[0.0, 0.0],'unil':[False,True],'sep_cost':[0.0,0.2],'grid_title':np.array([0.4,0.5,0.6]),'sigma_love':0.4,'T':T,'num_A':20,'max_A':6.0,"num_power":15}},
-    'model 2':{'latexname':'EGM2', 'par':{'γ':[0.0, 0.0],'unil':[True,True],'sep_cost':[0.0,0.2],'grid_title':np.array([0.4,0.5,0.6]),'sigma_love':0.4,'T':T,'num_A':20,'max_A':6.0,"num_power":15}},
-}
+    #'model 1':{'latexname':'EGM1', 'par':{'γ':[0.0, 0.0],'unil':[True,True],'comty_regime':[True,True], 'sep_cost':[0.2,0.0],'grid_title': np.array([0.5]),'σL':0.1,'σL0':0.5,'T':T,'Tr':45,'num_A':20,'max_A':300.0,"num_power":15}},
+    #'model 2':{'latexname':'EGM2', 'par':{'γ':[0.0, 0.001],'unil':[True,True],'comty_regime':[True,True],'sep_cost':[0.2,0.0],'grid_title': np.array([0.5]),'σL':0.1,'σL0':0.5,'T':T,'Tr':45,'num_A':20,'max_A':120.0,"num_power":11}},
+    'model 1':{'latexname':'EGM2', 'par':{'unil':[False,True],'comty_regime':[True,True],'sep_cost':[0.2,0.0],'grid_title': np.array([0.5]),'meet': xc[0], 'γ':[0.0, xc[1]],'σL0':xc[2],'σL':xc[2]*xc[3],'α2':xc[4],'α1':1.0-xc[4]}},
+    'model 2':{'latexname':'EGM2', 'par':{'unil':[True,True],'comty_regime':[True,True],'sep_cost':[0.2,0.0],'grid_title': np.array([0.5]),'meet': xc[0], 'γ':[0.0, xc[1]],'σL0':xc[2],'σL':xc[2]*xc[3],'α2':xc[4],'α1':1.0-xc[4]}}}
 
 # solve different models (takes several minutes)
 models = {}
@@ -39,14 +43,15 @@ for name,spec in specs.items():
 #Policy Functions
 ###################
 cmaps = ('viridis','gray')#('viridis',)#
-model_list =('model 1','model 2')#('model 2',)# 
+model_list = ('model 1','model 2')#('model 2',)#
 
 
 #Points to consider
-par = models['model 1'].par
-t =0; iz=8; ih=1; iL=5#par.num_love//2
+par = models['model 2'].par
+t =4; iz=5; ih=1; iL=5
  
 for var in ('p_Vw_remain_couple','p_C_tot_remain_couple','remain_WLP'):
+#for var in ('Vm_couple','Vw_couple','power'):
 
     fig = plt.figure();ax = plt.axes(projection='3d')
             
@@ -55,23 +60,20 @@ for var in ('p_Vw_remain_couple','p_C_tot_remain_couple','remain_WLP'):
         par = models[name].par
         X, Y = np.meshgrid(par.grid_power, par.grid_A,indexing='ij')
         
-        Z = getattr(model.sol,var)[t,1,ih,iz,:,iL,:]
+        Z = getattr(model.sol,var)[t,0,ih,iz,:,iL,:]#getattr(model.sol,var)[t,0,ih,iz,:,iL,:,0]#
         alpha = 0.2 if name=='model 2' else 0.5
         ax.plot_surface(X, Y, Z,cmap=cmaps[i],alpha=alpha);
         if var == 'power':  ax.set(zlim=[0.0,1.0])
         ax.set(xlabel='power',ylabel='$A$');ax.set_title(f'{var}')
-plt.show()    
+plt.show()  
+
+  
 ####################################    
 # Simulated Path - general variables
 ####################################
 var_list = ('rel','A','power','WLP')
-init_power=model.par.grid_power[7];init_love=par.num_love//2
 for i,name in enumerate(model_list):
     model = models[name]
-
-    # show how starting of in a low bargaining power gradually improves
-    model.sim.init_power[:] = init_power
-    model.sim.init_love[:] = init_love 
     model.simulate()
     
 for var in var_list:
@@ -91,7 +93,7 @@ for var in var_list:
         # pick relevant variable for couples
         y = getattr(model.sim,var);y = np.nanmean(y + nan,axis=0)
         ax.plot(y,marker=markers[i],linestyle=linestyles[i],linewidth=linewidth,label=model.spec['latexname']);
-        ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power}, init_love={init_love}')
+        ax.set(xlabel='age',ylabel=f'{var}')
 plt.show()
 
 ###################################
@@ -113,7 +115,7 @@ for j,var in enumerate(rel_list):
         # pick relevant variable for couples 
         y = np.mean(yt,axis=0) 
         ax.plot(y,color=colors[j],linestyle=linestyles[i],linewidth=linewidth,label=var);ax.legend() 
-ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power}, init_love={init_love}') 
+ax.set(xlabel='age',ylabel=f'{var}')
 plt.show() 
 
 ###################################
@@ -128,7 +130,7 @@ for j,var in enumerate(rel_list):
         model = models[name]
     
         # pick out couples (if not the share of couples is plotted)
-        I = model.sim.rel!=j
+        I = (model.sim.rel!=j) #| (model.sim.rel_lag!=2)
         yw = model.par.grid_lovew[t][model.sim.love//par.num_lovem]
         ym = model.par.grid_lovem[t][model.sim.love%par.num_lovew]
         yw[I] = np.nan
@@ -138,13 +140,28 @@ for j,var in enumerate(rel_list):
         y_w = np.nanmean(yw,axis=0);y_m = np.nanmean(ym,axis=0)
         ax.plot(y_w,marker=markers[0],color=colors[j],linestyle=linestyles[i],linewidth=linewidth,label=var)
         ax.plot(y_m,marker=markers[1],color=colors[j],linestyle=linestyles[i],linewidth=linewidth,label=var);ax.legend()
-ax.set(xlabel='age',ylabel=f'{var}');ax.set_title(f'pow_idx={init_power}, init_love={init_love}')
+ax.set(xlabel='age',ylabel=f'{var}')
 plt.show()
+
+
+
+#Compute moments
+
+#Women's labor supply
+WLP = model.sim.WLP[:,10:30][model.sim.rel[:,10:30]<2].mean()
+
+#Share ever married and cohabited
+share_m = np.mean(np.cumsum(model.sim.rel==0,axis=1)[:,20]>0)
+share_c = np.mean(np.cumsum(model.sim.rel==1,axis=1)[:,20]>0)
+
+#Share ever divorce and broke up
+share_d = np.mean(np.cumsum((model.sim.rel_lag==0) & (model.sim.rel==2),axis=1)[:,20]>0)
+share_b = np.mean(np.cumsum((model.sim.rel_lag==1) & (model.sim.rel==2),axis=1)[:,20]>0)
 
 #####################################
 #Cohabitation - marriage analysis
 #####################################
-#model1 = models['model 1']
+model1 = models['model 1']
 model2 = models['model 2']
 shape_couple = (par.T,2,par.num_h,par.num_z,par.num_power,par.num_love,par.num_A)
 V1,V2=np.zeros(shape_couple),np.zeros(shape_couple)
@@ -157,20 +174,57 @@ for t in range(par.T):
                         for iA in range(par.num_A): 
                    
                             idx=(t,rel,ih,iz,iP,iL,iA)
-                            #V1[idx]=par.grid_power[iP]      *model1.sol.p_Vw_remain_couple[idx]+\
-                             #       (1.0-par.grid_power[iP])*model1.sol.p_Vm_remain_couple[idx]
+                            V1[idx]=par.grid_power[iP]      *model1.sol.Vw_couple[idx]+\
+                                    (1.0-par.grid_power[iP])*model1.sol.Vm_couple[idx]
                                     
-                            V2[idx]=par.grid_power[iP]      *model2.sol.n_Vw_remain_couple[idx]+\
-                                    (1.0-par.grid_power[iP])*model2.sol.n_Vm_remain_couple[idx]
+                            V2[idx]=par.grid_power[iP]      *model2.sol.Vw_couple[idx]+\
+                                    (1.0-par.grid_power[iP])*model2.sol.Vm_couple[idx]
                                     
                             
-t = 4; iz=8; ih=1; iL=5
-plt.plot(V2[t,0,ih,iz,:,iL,:]-V2[t,1,ih,iz,:,iL,:])
-plt.show()
-plt.plot(V2[t,0,ih,iz,:,iL,:].T-V2[t,1,ih,iz,:,iL,:].T)
-plt.show()
 
-#print('Model 1 Vmar-Vcoh is {}'.format((V1[:model.par.Tr-1,0,:,:,:,:,:]-V1[:model.par.Tr-1,1,:,:,:,:,:]>=0.0).mean()))
-print('Model 2 Vmar-Vcoh is {}'.format((V2[:model.par.Tr-3,0,:,:,:,:,:]-V2[:model.par.Tr-3,1,:,:,:,:,:]>=0.0).mean()))
+###################################
+#Policy Functions - power and assets
+####################################
+t = 0; iz=4; ih=1; iL=par.num_love//2; iA=15; poww=7
+
+fig = plt.figure();ax = plt.axes(projection='3d')
+X, Y = np.meshgrid(par.grid_power,par.grid_A,indexing='ij')
+Z = V2[t,0,ih,iz,:,iL,:]-V2[t,1,ih,iz,:,iL,:]
+
+ax.plot_surface(X, Y, Z ,cmap='RdBu',alpha=1.0,norm=colorss.CenteredNorm());
+ax.set(xlabel='power',ylabel='Assets');ax.set_title('marriage surplus')
+plt.show() 
+
+
+
+###################################
+#Policy Functions - util and love
+####################################
+t = 0; iz=5; ih=1; iL=5; iA=15; poww=3
+surp = V2[t,0,ih,iz,poww,:,:]-V2[t,1,ih,iz,poww,:,:]
+plt.plot(surp)
+
+
+fig = plt.figure();ax = plt.axes(projection='3d')
+X, Y = np.meshgrid(par.grid_lovew[t],par.grid_lovem[t],indexing='ij')
+Z = np.ones((par.num_lovew,par.num_lovem))
+for i in range(par.num_love):
+    izw=i//par.num_lovem
+    izm=i%par.num_lovew
+
+    Z[izw,izm]=V2[t,0,ih,iz,poww,i,iA]-V2[t,1,ih,iz,poww,i,iA]
+    #if (model2.sol.power[t,0,ih,iz,poww,i,iA]<0.0) | (model2.sol.power[t,1,ih,iz,poww,i,iA]<0.0):Z[izw,izm]=np.nan
+    
+ax.plot_surface(X, Y, Z ,cmap='RdBu',alpha=1.0,norm=colorss.CenteredNorm());
+ax.set(xlabel='love w',ylabel='love m');ax.set_title('marriage surplus')
+plt.show() 
+
+
+
+
+
+
+print('Model 1 Vmar-Vcoh is {}'.format((V1[:model.par.Tr-1,0,:,:,:,:,:]-V1[:model.par.Tr-1,1,:,:,:,:,:]>=0.0).mean()))
+print('Model 2 Vmar-Vcoh is {}'.format((V2[:model.par.Tr-1,0,:,:,:,:,:]-V2[:model.par.Tr-1,1,:,:,:,:,:]>=0.0).mean()))
 
 
