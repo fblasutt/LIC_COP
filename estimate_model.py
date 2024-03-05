@@ -28,17 +28,21 @@ def q(pt,model_old):
     model = model_old.copy(name='numba_new_copy')
     
     model.par.unil=[True,True]
-    #model.par.grid_title=np.array([0.5])
+    model.par.grid_title=np.array([0.5])#np.linspace(0.2,0.8,11)#
+    model.par.comty_regime=[True,True]
+    #model.par.grid_h = np.array([0.0,0.0])
+   
     model.par.meet=pt[0]
+    model.par.sep_cost_u=[0.3,0.0]
     
     model.par.λ_grid = np.ones(model.par.T)*pt[0]
     for t in range(model.par.Tr,model.par.T):model.par.λ_grid[t]=0.0
     
-    model.par.γ=[0.0,pt[1]]
+    model.par.γ=[0.3,pt[1]]
     
     
-    model.par.grid_lovew,model.par.Πlw,model.par.Πlw0= usr.rouw_nonst(model.par.T,pt[3]*pt[2],pt[2],model.par.num_lovew)
-    model.par.grid_lovem,model.par.Πlm,model.par.Πlm0= usr.rouw_nonst(model.par.T,pt[3]*pt[2],pt[2],model.par.num_lovem)
+    model.par.grid_lovew,model.par.Πlw,model.par.Πlw0= usr.addaco_nonst(model.par.T,pt[3]*pt[2],pt[2],model.par.num_lovew)
+    model.par.grid_lovem,model.par.Πlm,model.par.Πlm0= usr.addaco_nonst(model.par.T,pt[3]*pt[2],pt[2],model.par.num_lovem)
     model.par.Πl =[np.kron(model.par.Πlw[t], model.par.Πlm[t] ) for t in range(model.par.T-1)] # couples trans matrix
     model.par.Πl0=[np.kron(model.par.Πlw0[t],model.par.Πlm0[t]) for t in range(model.par.T-1)] # couples trans matrix
         
@@ -61,21 +65,21 @@ def q(pt,model_old):
     WLP = model.sim.WLP[:,10:30][model.sim.rel[:,10:30]<2].mean()
 
     #Share ever married and cohabited
-    share_m = np.mean(np.cumsum(model.sim.rel==0,axis=1)[:,20]>0)
-    share_c = np.mean(np.cumsum(model.sim.rel==1,axis=1)[:,20]>0)
+    share_m = np.mean(np.cumsum(model.sim.rel==0,axis=1)[:,16]>0)#np.mean(model.sim.rel[:,16]==0)#
+    share_c = np.mean(np.cumsum(model.sim.rel==1,axis=1)[:,16]>0)#np.mean(model.sim.rel[:,16]==1)#
 
     #Share ever divorce and broke up
-    share_d = np.mean(np.cumsum((model.sim.rel_lag==0) & (model.sim.rel==2),axis=1)[:,20]>0)
-    share_b = np.mean(np.cumsum((model.sim.rel_lag==1) & (model.sim.rel==2),axis=1)[:,20]>0)
+    share_d = np.mean(np.cumsum((model.sim.rel_lag==0) & (model.sim.rel==2),axis=1)[:,16]>0)
+    share_b = np.mean(np.cumsum((model.sim.rel_lag==1) & (model.sim.rel==2),axis=1)[:,16]>0)
     
     
     print('WLP: {}, share_m: {}; share_c: {}, share_d: {}, share_b: {}'.format(WLP,share_m,share_c,share_d,share_b))
     #fit =((WLP-0.55)/0.55)**2+((share_m-0.95)/0.95)**2+((share_c-0.35)/0.35)**2+((share_d-0.23)/0.23)**2+((share_b-0.18)/0.18)**2
    
-    fit =((WLP-0.55))**2+((share_m-0.95))**2+((share_c-0.35))**2+((share_d-0.23))**2+((share_b-0.18))**2
+    fit =((WLP-0.55))**2+((share_m-0.947))**2+((share_c-0.378))**2+((share_d-0.312))**2+((share_b-0.106))**2
     print(fit)
     #return [((WLP-0.55)/0.55),((share_m-0.95)/0.95),(share_c-0.35)/0.35,((share_d-0.23)/0.23),((share_b-0.18)/0.18)]
-    return [((WLP-0.55)),((share_m-0.95)),(share_c-0.35),((share_d-0.23)),((share_b-0.18))]
+    return [((WLP-0.55)),((share_m-0.947)),(share_c-0.378),((share_d-0.312)),((share_b-0.106))]
     #return fit
     
     
@@ -92,14 +96,16 @@ xl=np.array([0.1,0.0001,0.1,0.01,0.2])
 xu=np.array([0.8,0.015  ,2.5,1.0 ,0.60])
 
 #unilateral estimation love:5
-xc=np.array([0.72363445, 0.00241628, 0.01908615, 0.51386287, 0.39605553])
-xl=np.array([0.1,0.0001,0.01,0.01,0.2])
-xu=np.array([0.8,0.03  ,0.5,1.0 ,0.60])
+xc=np.array([0.99,       0.00297826, 0.02161296, 0.40408969, 0.40300724])
+xc=np.array([0.92574115, 0.00898869, 0.02515822, 0.56917511, 0.40189191])
 
-#unilateral estimation love:7
-# xc=np.array([0.99752132, 0.00245889, 0.01234884, 0.60178741, 0.39871459])
-# xl=np.array([0.1,0.0001,0.01,0.01,0.2])
-# xu=np.array([1.0,0.03  ,0.5,1.0 ,0.60])
+xc=np.array([0.31060636, 0.35251595, 0.01002104, 2.735426716, 0.40193037])
+xl=np.array([0.1,0.3001,0.001,0.001,0.2])
+xu=np.array([0.999,2.5  ,0.3,7.0 ,0.50])
+
+
+
+
 
 #Parametrize the model
 par = {'unil':[False,True],'comty_regime':[True,True],'sep_cost':[0.2,0.0],'grid_title': np.array([0.5]),
@@ -117,7 +123,7 @@ model = brg.HouseholdModelClass(par=par)
 #                 objfun_has_noise=False,print_progress=True)
 
 
-res=dfols.solve(q, xc,args=(model,), rhobeg = 0.3, rhoend=1e-4, maxfun=150, bounds=(xl,xu),
+res=dfols.solve(q, xc,args=(model,), rhobeg = 0.3, rhoend=1e-4, maxfun=200, bounds=(xl,xu),
                 npt=len(xc)+5,scaling_within_bounds=True, 
                 user_params={'tr_radius.gamma_dec':0.98,'tr_radius.gamma_inc':1.0,
                               'tr_radius.alpha1':0.9,'tr_radius.alpha2':0.95},

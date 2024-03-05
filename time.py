@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import time
 import Bargaining_numba as brgj
 import numpy as np
+from numba import set_num_threads
+set_num_threads(15)
 
 # plot style
 linestyles = ['-','--','-.',':',':']
@@ -16,7 +18,7 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 
 # create the model
-specs = {'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'σL':0.001,'σL0':1.0,'T':60,'Tr':42,'max_A':120.0}}}
+specs = {'model 1':{'latexname':'$\sigma_{\psi}=0$', 'par':{'σL':0.01,'σL0':0.02,'T':60,'Tr':45,'max_A':120.0}}}
 modelj = brgj.HouseholdModelClass(name='model_1',par=specs['model 1']['par'])
 
 

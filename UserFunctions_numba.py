@@ -159,27 +159,6 @@ def normcdf_tr(z,nsd=5):
     
 def normcdf_ppf(z): return norm.ppf(z,0.0,1.0)       
         
-    
-
-def rouw_nonst(T=40,sigma_persistent=0.05,sigma_init=0.2,npts=10):
-   
-    sd_z = sd_rw(T,sigma_persistent,sigma_init)
-    sd_z0 = np.array([sd_z[t]-sigma_init for t in range(T)])
-    
-    
-    Pi = list();Pi0 = list();X = list()
-    
-    
-    for t in range(0,T):
-        nsd = np.sqrt(npts-1)
-        X = X + [np.linspace(-nsd*sd_z[t],nsd*sd_z[t],num=npts)]
-        
-        if t >= 1: Pi = Pi +   [rouw_nonst_one(sd_z[t-1],sd_z[t] ,npts).T]
-        if t >= 1: Pi0 = Pi0 + [rouw_nonst_one(sd_z0[t-1],sd_z0[t],npts).T]
-       
-     
-    
-    return X, Pi, Pi0
 
 
 def rouw_nonst_one(sd0,sd1,npts):
@@ -207,29 +186,30 @@ def rouw_nonst_one(sd0,sd1,npts):
     return Pi
 
 
-# def normcdf_tr(z,nsd=5):
+def rouw_nonst(T=40,sigma_persistent=0.05,sigma_init=0.2,npts=10):
+   
+    sd_z = sd_rw(T,sigma_persistent,sigma_init)
+    sd_z0 = np.array([np.sqrt(sd_z[t]**2-sigma_init**2) for t in range(T)])
+       
+    Pi = list();Pi0 = list();X = list()
+
+    for t in range(0,T):
+        nsd = np.sqrt(npts-1)
+        X = X + [np.linspace(-nsd*sd_z[t],nsd*sd_z[t],num=npts)]
         
-#         z = np.minimum(z, nsd*np.ones_like(z))
-#         z = np.maximum(z,-nsd*np.ones_like(z))
-            
-#         pup = norm.cdf(nsd,0.0,1.0)
-#         pdown = norm.cdf(-nsd,0.0,1.0)
-#         const = pup - pdown
-        
-#         return (norm.cdf(z,0.0,1.0)-pdown)/const
-    
-    
-# def normcdf_ppf(z): return norm.ppf(z,0.0,1.0)       
+        if t >= 1: Pi = Pi +   [rouw_nonst_one(sd_z[t-1],sd_z[t] ,npts).T]
+        if t >= 1: Pi0 = Pi0 + [rouw_nonst_one(sd_z0[t-1],sd_z[t-1],npts).T]
+       
+    return X, Pi, Pi0      
         
       
-def addaco_nonst(T=40,sigma_persistent=0.05,sigma_init=0.2,npts=50,sd_z=None,intt=False):
+def addaco_nonst(T=40,sigma_persistent=0.05,sigma_init=0.2,npts=50):
   
     # start with creating list of points
-    if sd_z is None:  sd_z = sd_rw(T,sigma_persistent,sigma_init)
+    sd_z = sd_rw(T,sigma_persistent,sigma_init)
+    sd_z0 = np.array([np.sqrt(sd_z[t]**2-sigma_init**2) for t in range(T)])
         
-    Int = list()
-    X = list()
-    Pi = list()
+    Pi = list();Pi0 = list();X = list();Int=list()
 
 
     #Probabilities per period
@@ -255,7 +235,7 @@ def addaco_nonst(T=40,sigma_persistent=0.05,sigma_init=0.2,npts=50,sd_z=None,int
             
     #Fill probabilities
     for t in range(1,T):
-        Pi_here = np.zeros([npts,npts])
+        Pi_here = np.zeros([npts,npts]);Pi_here0 = np.zeros([npts,npts])
         for i in range(npts):
             for jj in range(npts):
                 
@@ -263,18 +243,17 @@ def addaco_nonst(T=40,sigma_persistent=0.05,sigma_init=0.2,npts=50,sd_z=None,int
                     *quad(integrand,Int[t-1][i],Int[t-1][i+1],
                      args=(Int[t][jj],Int[t][jj+1],sd_z[t],sigma_persistent))[0]
                 
-                if T==2:
-                    Pi_here[i,jj]= norm.cdf(Int[t][jj+1],0.0,1.0)-\
-                                   norm.cdf(Int[t][jj ],0.0,1.0)
+                Pi_here0[i,jj]= norm.cdf(Int[t][jj+1],0.0,sigma_init)-\
+                                   norm.cdf(Int[t][jj],0.0,sigma_init)
                                    
             #Adjust probabilities to get exactly 1: the integral is an approximation
             Pi_here[i,:]=Pi_here[i,:]/np.sum(Pi_here[i,:])
+            Pi_here0[i,:]=Pi_here0[i,:]/np.sum(Pi_here0[i,:])
                 
         Pi = Pi + [Pi_here.T]
+        Pi0 = Pi0 + [Pi_here0.T]
         
-  
-    #if intt:return X, Pi, Int
-    return X, Pi
+    return X, Pi, Pi0   
 
 
 @njit(fastmath=True)

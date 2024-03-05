@@ -25,6 +25,7 @@ class HouseholdModelClass(EconModelClass):
         par.R = 1.03
         par.β = 0.98# Discount factor
         par.sep_cost = [0.1, 0.0] # share of wealth lost upon divorce (0), breakup (1) 
+        par.sep_cost_u = [3.0, 0.0] # share of wealth lost upon divorce (0), breakup (1) 
         par.γ        = [0.0, 0.0] # utility stigma towards marriage (0) and cohabitation (1)
 
         # Utility: CES aggregator or additively linear
@@ -47,7 +48,7 @@ class HouseholdModelClass(EconModelClass):
         par.num_A = 20;par.max_A = 120.0
         
         # bargaining power
-        par.num_power = 7
+        par.num_power = 9
         
         #women's human capital states
         par.num_h = 2
@@ -106,10 +107,20 @@ class HouseholdModelClass(EconModelClass):
         par.grid_power = usr.grid_fat_tails(0.01,0.99,par.num_power)
 
         # love grid and shock    
-        par.grid_lovew,par.Πlw,par.Πlw0= usr.rouw_nonst(par.T,par.σL,par.σL0,par.num_lovew)
-        par.grid_lovem,par.Πlm,par.Πlm0= usr.rouw_nonst(par.T,par.σL,par.σL0,par.num_lovem)
+        par.grid_lovew,par.Πlw,par.Πlw0= usr.addaco_nonst(par.T,par.σL,par.σL0,par.num_lovew)
+        par.grid_lovem,par.Πlm,par.Πlm0= usr.addaco_nonst(par.T,par.σL,par.σL0,par.num_lovem)
         par.Πl =[np.kron(par.Πlw[t], par.Πlm[t] ) for t in range(par.T-1)] # couples trans matrix
         par.Πl0=[np.kron(par.Πlw0[t],par.Πlm0[t]) for t in range(par.T-1)] # couples trans matrix
+        
+
+        
+        # (par.Πlw0[0][:,0]@par.grid_lovew[0]**2)**0.5
+        # (par.Πlw[0][:,2]@par.grid_lovew[1]**2)**0.5
+        
+        
+        # (par.Πlm0[0][:,2]@par.grid_lovem[0]**2)**0.5
+        # (par.Πlm[0][:,2]@par.grid_lovem[1]**2)**0.5
+        
         
         # for t in range(par.T-1):
         #     for iw in range(par.num_lovew):
@@ -117,9 +128,10 @@ class HouseholdModelClass(EconModelClass):
         #             for im in range(par.num_lovem):
         #                 for jm in range(par.num_lovem):
                     
-        #                      j=jm*par.num_lovem+jw
-        #                      i=im*par.num_lovem+iw
-        #                      par.Πl[t][j,i]=par.Πlw[t][jw,iw] if ((jw==jm)) else 0.0
+        #                       j=jm*par.num_lovem+jw
+        #                       i=im*par.num_lovem+iw
+        #                       par.Πl[t][j,i]=par.Πlw[t][jw,iw] if ((jw==jm)) else 0.0
+        #                       par.Πl0[t][j,i]=par.Πlw0[t][jw,iw] if ((jw==jm)) else 0.0
                 
                 
             
@@ -144,6 +156,11 @@ class HouseholdModelClass(EconModelClass):
         par.grid_zm,par.Π_zm, par.Π_zm0=  usr.labor_income(par.t0m,par.t1m,par.t2m,par.t3m,par.T,par.Tr,par.σzm,par.σ0zm,par.num_zm,par.pension)
         par.Π=[np.kron(par.Π_zw[t],par.Π_zm[t]) for t in range(par.T-1)] # couples trans matrix    
         par.Π0=np.kron(par.Π_zw0[0],par.Π_zm0[0])
+        
+        par.Π0w=[np.kron(par.Π_zw[t],np.ones((3,3))/3.0) for t in range(par.T-1)] # couples trans matrix
+        par.Π0m=[np.kron(np.ones((3,3))/3.0,par.Π_zm[t]) for t in range(par.T-1)] # couples trans matrix
+        
+        #par.Πl0w=[np.kron(par.Πlw0[t],np.ones(par.Πlm0[t].shape)/3.0) for t in range(par.T-1)]
         
     def allocate(self):
         par = self.par;sol = self.sol;sim = self.sim;self.setup_grids()
@@ -221,7 +238,7 @@ class HouseholdModelClass(EconModelClass):
         sim.init_power =  0.5**np.ones(par.simN)                   #barg power 
         sim.init_lovew = np.ones(par.simN,dtype=np.int_)*par.num_lovew//2#w's initial love
         sim.init_lovem = np.ones(par.simN,dtype=np.int_)*par.num_lovem//2#m's initial love
-        sim.init_love = sim.init_lovew*par.num_zm+sim.init_lovem          #initial love
+        sim.init_love =  np.ones(par.simN,dtype=np.int_)*par.num_love//2          #initial love
         sim.init_zw = np.ones(par.simN,dtype=np.int_)*par.num_zw//2       #w's initial income 
         sim.init_zm = np.ones(par.simN,dtype=np.int_)*par.num_zm//2       #m's initial income
         sim.init_z  = sim.init_zw*par.num_zm+sim.init_zm                  #    initial income
@@ -323,24 +340,38 @@ def integrate_single(sol,par,t):
                     
     # 2. Expected value if meeting a partner: Π=kroneker product of love, wage, HC risk.
     Π=usr.rescale_matrix(np.kron(np.kron(par.Πh_p,par.Π[t]),par.Πl0[t]))
+    
+    Πw=usr.rescale_matrix(np.kron(np.kron(par.Πh_p,par.Π0w[t]),par.Πl0[t]))
+    Πm=usr.rescale_matrix(np.kron(np.kron(par.Πh_p,par.Π0m[t]),par.Πl0[t]))
     for iA in prange(par.num_A):
         for jz in range(par.num_z):
             for jh in range(par.num_h):
                 for jL in range(par.num_love):
                     
+                    
+                   
                     #indices (mean-zero love shock for w and m: assumes symmetry)
                     iL = par.num_love//2;rel=1;cjx=(t+1,rel,jh,jz,slice(None),jL,iA)                   
                     a_cjx =jh*par.num_love*par.num_z + jz*par.num_love+jL;sjx = (t+1,jh,jz,iA);
                     
                     #w and m value of max(partner,single) for cjx,sjx
                     vwt,vmt,_,_=marriage_mkt(par,sol.Vw_remain_couple[cjx],sol.Vm_remain_couple[cjx],
-                                                            sol.Vw_single[sjx],sol.Vm_single[sjx])                  
+                                                 sol.Vw_single[sjx],sol.Vm_single[sjx])                  
                     for iz in range(par.num_z):
                         for ih in range(par.num_h):
+                            
+                            izm =  iz%par.num_zw
+                            izw = iz//par.num_zm
+                            
+                            w_a_cix = ih*par.num_love*par.num_z + (izw*par.num_zm +par.num_zm//2)*par.num_love+iL
+                            m_a_cix = ih*par.num_love*par.num_z + (par.num_zw//2*par.num_zm +izm)*par.num_love+iL
                             
                             a_cix = ih*par.num_love*par.num_z + iz*par.num_love+iL
                             Ew_meet[ih,iz,iA]+= vwt * Π[a_cjx,a_cix]
                             Em_meet[ih,iz,iA]+= vmt * Π[a_cjx,a_cix]
+                            
+                            
+                            
                             
     # 3. Return expected value given meeting probabilities                                                  
     return par.λ_grid[t]*Ew_meet+(1.0-par.λ_grid[t])*Ew_nomeet, par.λ_grid[t]*Em_meet+(1.0-par.λ_grid[t])*Em_nomeet
@@ -552,8 +583,8 @@ def outside_options(par,A,rel,Vw_single,Vm_single):
     for div in range(len(par.grid_title)):
         Aw=par.grid_title[div]      *A*(1.0-par.sep_cost[rel])      #wealth if separation, w
         Am=(1.0-par.grid_title[div])*A*(1.0-par.sep_cost[rel])      #wealth if separation, m
-        list_single = (linear_interp.interp_1d(par.grid_Aw,Vw_single,Aw),#single
-                       linear_interp.interp_1d(par.grid_Am,Vm_single,Am))#list  
+        list_single = (linear_interp.interp_1d(par.grid_Aw,Vw_single,Aw)-par.sep_cost_u[rel],#single
+                       linear_interp.interp_1d(par.grid_Am,Vm_single,Am)-par.sep_cost_u[rel])#list  
    
         list_single_all_div.append(list_single)
    
@@ -797,6 +828,17 @@ def simulate_lifecycle(sim,sol,par):
             ih[i,t] = usr.mc_simulate(ih[i,t-1],Π,sim.shock_h[i,t])                  if t>0 else sim.init_ih[i]
             rel_lag[i,t] = rel[i,t-1]                                                if t>0 else sim.init_rel[i]
             power_lag[i,t] = power[i,t-1]                                            if t>0 else sim.init_power[i]
+            
+            
+            # if rel_lag[i,t]==2 : iz[i,t-1] = (iz[i,t-1]//par.num_zm)*par.num_zm +par.num_zm//2
+            
+            
+          
+            # if (rel_lag[i,t]==2) & (t>0) : 
+            #     iz[i,t] = usr.mc_simulate(iz[i,t-1],par.Π0w[t-1],sim.shock_z[i,t])
+            # else:
+            #     iz[i,t] = usr.mc_simulate(iz[i,t-1],par.Π[t-1],sim.shock_z[i,t])         if t>0 else usr.mc_simulate(sim.init_z[i],par.Π0,sim.shock_z[i,t])            
+           
             iz[i,t] = usr.mc_simulate(iz[i,t-1],par.Π[t-1],sim.shock_z[i,t])         if t>0 else usr.mc_simulate(sim.init_z[i],par.Π0,sim.shock_z[i,t])            
             love[i,t] = usr.mc_simulate(love[i,t-1],par.Πl[t-1],shock_love[i,t])     if rel_lag[i,t]<=1 else usr.mc_simulate(sim.init_love[i],par.Πl0[min(t,par.simT-2)],shock_love[i,t])
             
@@ -818,8 +860,8 @@ def simulate_lifecycle(sim,sol,par):
             if (rel_lag[i,t]<2) & (t<par.Tr): # do rebargaining power and divorce choice ifin a couple and not retired          
 
                 # value of transitioning into singlehood
-                list_single = (linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,ih[i,t],iz[i,t]],Aw[i,t]),
-                               linear_interp.interp_1d(par.grid_Am,sol.Vm_single[t,ih[i,t],iz[i,t]],Am[i,t]))
+                list_single = (linear_interp.interp_1d(par.grid_Aw,sol.Vw_single[t,ih[i,t],iz[i,t]],Aw[i,t])-par.sep_cost_u[rel_lag[i,t]],
+                               linear_interp.interp_1d(par.grid_Am,sol.Vm_single[t,ih[i,t],iz[i,t]],Am[i,t])-par.sep_cost_u[rel_lag[i,t]])
 
                 list_raw    = (np.array([interp1d(sol.Vw_remain_couple[idx][iP],A[i,t]) for iP in range(par.num_power)]),
                                np.array([interp1d(sol.Vm_remain_couple[idx][iP],A[i,t]) for iP in range(par.num_power)]))
@@ -891,7 +933,7 @@ def simulate_lifecycle(sim,sol,par):
 
                 # update end-of-period states
                 Mw = par.R*Aw[i,t] + incw[i,t] # total resources woman
-                Mm = par.R*Am[i,t] + incm[i,t] # total resources man
+                #Mm = par.R*Am[i,t] + incm[i,t] # total resources man
                 if t< par.simT-1: Aw[i,t+1] = Mw - Cw_tot
-                if t< par.simT-1: Am[i,t+1] = Mm - Cm_tot
+                if t< par.simT-1: Am[i,t+1] = Aw[i,t+1]#Mm - Cm_tot
                 if t< par.simT-1: A[i,t+1]  = Aw[i,t+1] + Am[i,t+1] 

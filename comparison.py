@@ -18,8 +18,11 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 
 # settings for models to solve
 T = 60
-xc=np.array([0.308232  , 0.00883859, 1.82712902, 0.33920033, 0.40122403] )
-xc=np.array([0.72363445, 0.00241628, 0.01908615, 0.51386287, 0.39605553])
+xc=np.array([0.66919869, 0.00168888, 0.01945173, 0.58554721, 0.40010894])
+
+xc=np.array([0.23819819, 0.2557744 , 0.02290709, 6.99281842, 0.40472219])
+
+
 specs = {
     #'model 1':{'latexname':'EGM1', 'par':{'γ':[0.0, 0.0],'unil':[True,True],'comty_regime':[True,True], 'sep_cost':[0.2,0.0],'grid_title': np.array([0.5]),'σL':0.1,'σL0':0.5,'T':T,'Tr':45,'num_A':20,'max_A':300.0,"num_power":15}},
     #'model 2':{'latexname':'EGM2', 'par':{'γ':[0.0, 0.001],'unil':[True,True],'comty_regime':[True,True],'sep_cost':[0.2,0.0],'grid_title': np.array([0.5]),'σL':0.1,'σL0':0.5,'T':T,'Tr':45,'num_A':20,'max_A':120.0,"num_power":11}},
@@ -48,7 +51,7 @@ model_list = ('model 1','model 2')#('model 2',)#
 
 #Points to consider
 par = models['model 2'].par
-t =4; iz=5; ih=1; iL=5
+t =20; iz=5; ih=1; iL=24
  
 for var in ('p_Vw_remain_couple','p_C_tot_remain_couple','remain_WLP'):
 #for var in ('Vm_couple','Vw_couple','power'):
@@ -200,7 +203,7 @@ plt.show()
 ###################################
 #Policy Functions - util and love
 ####################################
-t = 0; iz=5; ih=1; iL=5; iA=15; poww=3
+t = 30; iz=5; ih=1; iL=5; iA=15; poww=3
 surp = V2[t,0,ih,iz,poww,:,:]-V2[t,1,ih,iz,poww,:,:]
 plt.plot(surp)
 
@@ -212,7 +215,7 @@ for i in range(par.num_love):
     izw=i//par.num_lovem
     izm=i%par.num_lovew
 
-    Z[izw,izm]=V2[t,0,ih,iz,poww,i,iA]-V2[t,1,ih,iz,poww,i,iA]
+    Z[izw,izm]=V1[t,0,ih,iz,poww,i,iA]-V1[t,1,ih,iz,poww,i,iA]
     #if (model2.sol.power[t,0,ih,iz,poww,i,iA]<0.0) | (model2.sol.power[t,1,ih,iz,poww,i,iA]<0.0):Z[izw,izm]=np.nan
     
 ax.plot_surface(X, Y, Z ,cmap='RdBu',alpha=1.0,norm=colorss.CenteredNorm());
@@ -227,4 +230,7 @@ plt.show()
 print('Model 1 Vmar-Vcoh is {}'.format((V1[:model.par.Tr-1,0,:,:,:,:,:]-V1[:model.par.Tr-1,1,:,:,:,:,:]>=0.0).mean()))
 print('Model 2 Vmar-Vcoh is {}'.format((V2[:model.par.Tr-1,0,:,:,:,:,:]-V2[:model.par.Tr-1,1,:,:,:,:,:]>=0.0).mean()))
 
+print('Model 1 Vmar-Vcoh is {}'.format((V1[:model.par.Tr-1,0,:,:,:,:,:]-V1[:model.par.Tr-1,1,:,:,:,:,:]).mean()))
+print('Model 2 Vmar-Vcoh is {}'.format((V2[:model.par.Tr-1,0,:,:,:,:,:]-V2[:model.par.Tr-1,1,:,:,:,:,:]).mean()))
 
+((models['model 2'].sim.power[:,:40]!=models['model 2'].sim.power_lag[:,:40]) & (models['model 2'].sim.rel[:,:40]<2) & (models['model 2'].sim.rel_lag[:,:40]<2)).mean()
