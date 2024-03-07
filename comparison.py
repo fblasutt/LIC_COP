@@ -20,7 +20,7 @@ plt.rcParams.update({'figure.max_open_warning': 0,'text.usetex': False})
 T = 60
 xc=np.array([0.66919869, 0.00168888, 0.01945173, 0.58554721, 0.40010894])
 
-xc=np.array([0.23819819, 0.2557744 , 0.02290709, 6.99281842, 0.40472219])
+xc=np.array([0.50067821, 0.01076512, 0.0503481 , 0.78203779, 0.40640988])
 
 
 specs = {
@@ -177,11 +177,11 @@ for t in range(par.T):
                         for iA in range(par.num_A): 
                    
                             idx=(t,rel,ih,iz,iP,iL,iA)
-                            V1[idx]=par.grid_power[iP]      *model1.sol.Vw_couple[idx]+\
-                                    (1.0-par.grid_power[iP])*model1.sol.Vm_couple[idx]
+                            V1[idx]=par.grid_power[iP]      *model1.sol.Vw_remain_couple[idx]+\
+                                    (1.0-par.grid_power[iP])*model1.sol.Vm_remain_couple[idx]
                                     
-                            V2[idx]=par.grid_power[iP]      *model2.sol.Vw_couple[idx]+\
-                                    (1.0-par.grid_power[iP])*model2.sol.Vm_couple[idx]
+                            V2[idx]=par.grid_power[iP]      *model2.sol.Vw_remain_couple[idx]+\
+                                    (1.0-par.grid_power[iP])*model2.sol.Vm_remain_couple[idx]
                                     
                             
 

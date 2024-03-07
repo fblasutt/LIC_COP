@@ -25,7 +25,7 @@ class HouseholdModelClass(EconModelClass):
         par.R = 1.03
         par.β = 0.98# Discount factor
         par.sep_cost = [0.1, 0.0] # share of wealth lost upon divorce (0), breakup (1) 
-        par.sep_cost_u = [3.0, 0.0] # share of wealth lost upon divorce (0), breakup (1) 
+        par.sep_cost_u = [0.0, 0.0] # share of wealth lost upon divorce (0), breakup (1) 
         par.γ        = [0.0, 0.0] # utility stigma towards marriage (0) and cohabitation (1)
 
         # Utility: CES aggregator or additively linear
@@ -714,9 +714,19 @@ def unil_sep_ren(par,solpower,gridpower,list_raw,list_single,idx,
     max_Sw = np.max(Sw);max_Sm = np.max(Sm) 
 
     # if expect rebargaining, interpolate the surplus of each member at indifference points
-    if ~((min_Sw >= 0.0) & (min_Sm >= 0.0)) & ~((max_Sw < 0.0) | (max_Sm < 0.0)):             
-        power_at_0_w, Sm_at_0_w, Low_w, i_Low_w = interp_barg(par,Sw,Sm,iswomen=True)
-        power_at_0_m, Sw_at_0_m, Low_m, i_Low_m = interp_barg(par,Sm,Sw,iswomen=False)
+    if ~((min_Sw >= 0.0) & (min_Sm >= 0.0)) & ~((max_Sw < 0.0) | (max_Sm < 0.0)):       
+        
+        
+        #min_Sw[3,300000]=1 
+        power_at_0_w = linear_interp.interp_1d(Sw      ,par.grid_power      ,0.0)  
+        power_at_0_m = linear_interp.interp_1d(Sm[::-1],par.grid_power[::-1],0.0) 
+ 
+        Sm_at_0_w = linear_interp.interp_1d(Sm[::-1],par.grid_power[::-1],power_at_0_w) 
+        Sw_at_0_m = linear_interp.interp_1d(Sw      ,par.grid_power      ,power_at_0_m)  
+   
+
+        #power_at_0_w, Sm_at_0_w, Low_w, i_Low_w = interp_barg(par,Sw,Sm,iswomen=True)
+        #power_at_0_m, Sw_at_0_m, Low_m, i_Low_m = interp_barg(par,Sm,Sw,iswomen=False)
         
     ##################################################################
     # For a given power, find out if marriage, divorce or rebargaining
@@ -737,17 +747,17 @@ def unil_sep_ren(par,solpower,gridpower,list_raw,list_single,idx,
         #3) some iP are (invidivually) consistent with marriage: try rebargaining
         else:             
             # 3.1) woman wants to leave &  man happy to shift some bargaining power
-            if (power<Low_w) & (Sm_at_0_w > 0): 
+            if (power<power_at_0_w) & (Sm_at_0_w > 0): 
                 solpower[idx[iP]] = power_at_0_w #update power, below update value function
-                if nosim:do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_w,i_Low_w-1,0)
+                if nosim:do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_w)#,i_Low_w-1,0)
                                                                           
             # 3.2) man wants to leave & woman happy to shift some bargaining power
-            elif (power>Low_m) & (Sw_at_0_m > 0): 
+            elif (power>power_at_0_m) & (Sw_at_0_m > 0): 
                 solpower[idx[iP]] = power_at_0_m #update power, below update value function
-                if nosim:do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_m,i_Low_m,i_Low_m+1)
+                if nosim:do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_m)#,i_Low_m,i_Low_m+1)
                                         
             # 3.3) divorce: men (women) wants to leave & woman (men) not happy to shift some bargaining power
-            elif ((power<Low_w) & (Sm_at_0_w <=0)) | ((power>Low_m) & (Sw_at_0_m <=0)):
+            elif ((power<power_at_0_w) & (Sm_at_0_w <=0)) | ((power>power_at_0_m) & (Sw_at_0_m <=0)):
                 solpower[idx[iP]] = -1.0  #update power, below update value function
                 if nosim:divorce(list_couple,list_single,idx[iP])
                 
@@ -762,10 +772,11 @@ def no_power_change(list_couple,list_raw,idx,iP,power):
 def divorce(list_couple,list_single,idx):    
     for i,key in enumerate(list_couple): key[idx]=list_single[i]         
 @njit
-def do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_i,low_i,low_0):    
+def do_power_change(par,list_couple,list_raw,idx,iP,power_at_0_i):#,low_i,low_0):    
     for i,key in enumerate(list_couple):
-        if iP==low_0: key[idx[iP]] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_0_i,low_i) 
-        else:         key[idx[iP]] = list_couple[i][idx[low_0]]; # re-use that the interpolated values are identical                               
+        key[idx[iP]] = linear_interp.interp_1d(par.grid_power,list_raw[i],power_at_0_i)
+        # if iP==low_0: key[idx[iP]] = linear_interp_1d._interp_1d(par.grid_power,list_raw[i],power_at_0_i,low_i) 
+        # else:         key[idx[iP]] = list_couple[i][idx[low_0]]; # re-use that the interpolated values are identical                               
 @njit
 def interp_barg(par,Si,So,iswomen=True):#i: individual, o: spouse
     

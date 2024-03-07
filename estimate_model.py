@@ -33,12 +33,12 @@ def q(pt,model_old):
     #model.par.grid_h = np.array([0.0,0.0])
    
     model.par.meet=pt[0]
-    model.par.sep_cost_u=[0.3,0.0]
+    model.par.sep_cost_u=[0.0,0.0]
     
     model.par.λ_grid = np.ones(model.par.T)*pt[0]
     for t in range(model.par.Tr,model.par.T):model.par.λ_grid[t]=0.0
     
-    model.par.γ=[0.3,pt[1]]
+    model.par.γ=[0.0,pt[1]]
     
     
     model.par.grid_lovew,model.par.Πlw,model.par.Πlw0= usr.addaco_nonst(model.par.T,pt[3]*pt[2],pt[2],model.par.num_lovew)
@@ -99,9 +99,9 @@ xu=np.array([0.8,0.015  ,2.5,1.0 ,0.60])
 xc=np.array([0.99,       0.00297826, 0.02161296, 0.40408969, 0.40300724])
 xc=np.array([0.92574115, 0.00898869, 0.02515822, 0.56917511, 0.40189191])
 
-xc=np.array([0.31060636, 0.35251595, 0.01002104, 2.735426716, 0.40193037])
-xl=np.array([0.1,0.3001,0.001,0.001,0.2])
-xu=np.array([0.999,2.5  ,0.3,7.0 ,0.50])
+xc=np.array([0.50067821, 0.01076512, 0.0503481 , 0.78203779, 0.40640988])
+xl=np.array([0.1,0.0001,0.001,0.001,0.3])
+xu=np.array([0.999,0.2  ,0.3,2.0 ,0.50])
 
 
 
@@ -123,7 +123,7 @@ model = brg.HouseholdModelClass(par=par)
 #                 objfun_has_noise=False,print_progress=True)
 
 
-res=dfols.solve(q, xc,args=(model,), rhobeg = 0.3, rhoend=1e-4, maxfun=200, bounds=(xl,xu),
+res=dfols.solve(q, xc,args=(model,), rhobeg = 0.3, rhoend=1e-4, maxfun=100, bounds=(xl,xu),
                 npt=len(xc)+5,scaling_within_bounds=True, 
                 user_params={'tr_radius.gamma_dec':0.98,'tr_radius.gamma_inc':1.0,
                               'tr_radius.alpha1':0.9,'tr_radius.alpha2':0.95},

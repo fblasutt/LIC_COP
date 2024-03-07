@@ -3,8 +3,7 @@ import matplotlib.pyplot as plt
 import time
 import Bargaining_numba as brgj
 import numpy as np
-from numba import set_num_threads
-set_num_threads(15)
+
 
 # plot style
 linestyles = ['-','--','-.',':',':']
